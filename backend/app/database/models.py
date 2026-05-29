@@ -1,0 +1,84 @@
+from sqlalchemy import (
+    create_engine,
+    Column,
+    Integer,
+    String,
+    Boolean,
+    Float,
+    DateTime,
+    Text,
+    ForeignKey
+)
+
+from sqlalchemy.orm import sessionmaker, declarative_base
+from datetime import datetime
+
+DATABASE_URL = "postgresql+psycopg2://postgres:Zaq1xsw2%40@127.0.0.1:5432/autoflex_hr"
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True
+)
+
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
+
+Base = declarative_base()
+
+
+# ── Models ────────────────────────────────────────────────────────────────────
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    email = Column(String(200), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(200), nullable=False)
+    role = Column(String(20), default="Recruiter")  # Admin | Recruiter
+    avatar_color = Column(String(10), default="#6366f1")
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Candidate(Base):
+    __tablename__ = "candidates"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200))
+    email = Column(String(200), index=True)
+    phone = Column(String(50))
+    city = Column(String(100))
+    education = Column(Text)
+    job_title = Column(String(200))
+    job_history = Column(Text)
+    skills = Column(Text)
+    hr_evaluation = Column(Text)
+    ats_score = Column(Float, default=0)
+    interview_status = Column(String(50), default="New")
+    interview_date = Column(String(50))
+    resume_url = Column(Text)
+    applied_date = Column(String(20))
+    notes = Column(Text, default="")
+    assigned_recruiter_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    action = Column(String(200))
+    entity_type = Column(String(50))
+    entity_id = Column(Integer)
+    details = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+def create_tables():
+    Base.metadata.create_all(bind=engine)

@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body { @apply bg-gray-50 dark:bg-[#0d0f1a] text-gray-900 dark:text-gray-100 antialiased; }
+}
+
+@layer components {
+  .glass { @apply bg-white/70 dark:bg-white/5 backdrop-blur-md border border-white/20 dark:border-white/10; }
+  .card { @apply bg-white dark:bg-[#141626] border border-gray-200 dark:border-[#1e2035] rounded-2xl shadow-sm; }
+  .btn-primary { @apply bg-brand-600 hover:bg-brand-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0; }
+  .btn-ghost { @apply bg-transparent hover:bg-gray-100 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 font-medium px-4 py-2 rounded-xl transition-all duration-200; }
+  .input { @apply w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-[#1e2035] rounded-xl px-4 py-2.5 text-sm placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200; }
+  .badge { @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold; }
+  .sidebar-item { @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer; }
+  .sidebar-item.active { @apply bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400; }
+  .sidebar-item:not(.active) { @apply text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+.dark .animate-shimmer {
+  background: linear-gradient(90deg, #1e2035 25%, #252840 50%, #1e2035 75%);
+  background-size: 200% 100%;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 10px; }
+.dark ::-webkit-scrollbar-thumb { background: #3f3f5a; }
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
