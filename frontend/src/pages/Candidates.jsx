@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiSearch, FiFilter, FiDownload, FiEye, FiPhone, FiMail, FiMapPin, FiCalendar, FiMessageSquare, FiCopy, FiX, FiChevronUp, FiChevronDown, FiAlertTriangle, FiCpu, FiFileText, FiEdit3 } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiDownload, FiEye, FiPhone, FiMail, FiMapPin, FiCalendar, FiMessageSquare, FiCopy, FiX, FiChevronUp, FiChevronDown, FiAlertTriangle, FiCpu, FiFileText, FiEdit3, FiTrash2 } from 'react-icons/fi';
 import { useAppStore, useAuthStore } from '../context/store';
 import { initials, avatarColor, scoreColor, STATUS_COLORS, STATUS_OPTIONS, JOB_ROLES, exportCSV } from '../utils/helpers';
 import toast from 'react-hot-toast';
@@ -660,9 +660,9 @@ function ResumeTab({ candidate }) {
           No resume URL provided
         </div>
         <div className="text-xs text-gray-400 text-center max-w-xs leading-relaxed">
-          Add the Google Drive share link to the
-          <strong className="text-gray-500 dark:text-gray-300"> Resume URL </strong>
-          column in your Google Sheet.
+          Set the
+          <strong className="text-gray-500 dark:text-gray-300"> resume_url </strong>
+          field on the candidate record in the database.
         </div>
       </div>
     );
@@ -997,8 +997,9 @@ function CandidateModal({ candidate, onClose }) {
 
 // ── Main Candidates Page ──────────────────────────────────────────────────────
 export default function Candidates() {
-  const { candidates, updateCandidateStatus } = useAppStore();
+  const { candidates, updateCandidateStatus, duplicateCandidate, deleteCandidate } = useAppStore();
   const { user } = useAuthStore();
+  const isAdmin = user?.role === 'Admin';
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -1025,6 +1026,18 @@ export default function Candidates() {
   const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const toggleSort = key => setSort(s => s.key === key ? { key, dir: -s.dir } : { key, dir: -1 });
+
+  const handleDuplicate = async c => {
+    const copy = await duplicateCandidate(c.id);
+    if (copy) toast.success(`Duplicated "${c.Name}"`);
+  };
+
+  const handleDelete = async c => {
+    if (!window.confirm(`Move "${c.Name}" to trash? You can restore it later from Trash.`)) return;
+    const ok = await deleteCandidate(c.id, user?.role);
+    if (ok) toast.success('Candidate moved to trash');
+    else toast.error('Failed to delete candidate');
+  };
   const SortIcon = ({ k }) => sort.key === k
     ? (sort.dir > 0 ? <FiChevronUp className="w-3 h-3" /> : <FiChevronDown className="w-3 h-3" />)
     : null;
@@ -1162,10 +1175,22 @@ export default function Candidates() {
                       : <span className="text-gray-300 text-xs">—</span>}
                   </td>
                   <td className="px-4 py-3">
-                    <button onClick={() => setSelected(c)}
-                      className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors px-3 py-1.5 bg-brand-50 dark:bg-brand-500/10 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20">
-                      <FiEye className="w-3.5 h-3.5" /> View
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => setSelected(c)} title="View"
+                        className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors px-3 py-1.5 bg-brand-50 dark:bg-brand-500/10 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20">
+                        <FiEye className="w-3.5 h-3.5" /> View
+                      </button>
+                      <button onClick={() => handleDuplicate(c)} title="Duplicate"
+                        className="p-1.5 text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-lg transition-colors">
+                        <FiCopy className="w-3.5 h-3.5" />
+                      </button>
+                      {isAdmin && (
+                        <button onClick={() => handleDelete(c)} title="Delete"
+                          className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors">
+                          <FiTrash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </motion.tr>
               ))}

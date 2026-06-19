@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-const SHEET_ID = '1_da4wqDPxCKnJXF9O5Tq0YiHfTWS0Iy_MsQqplX4W6U';
-const DEFAULT_API_KEY = 'AIzaSyBKB-ENoUi5SBqO_UBlpxSXOZvyui-_Wx4';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 const STATUS_MAP = {
   shortlisted: 'Shortlisted',
@@ -14,80 +13,47 @@ const STATUS_MAP = {
   new: 'New',
 };
 
-function parseATS(val) {
-  const raw = parseFloat(val) || 0;
-  return raw <= 10 && raw > 0 ? Math.round(raw * 10) : Math.round(raw);
+function normalizeResumeUrl(raw) {
+  if (!raw) return '';
+  let u = raw.trim();
+  const m =
+    u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+    u.match(/open\?id=([a-zA-Z0-9_-]+)/) ||
+    u.match(/uc\?.*id=([a-zA-Z0-9_-]+)/);
+  if (m) u = `https://drive.google.com/file/d/${m[1]}/preview`;
+  return u;
 }
 
-function parseSheetData(values) {
-  if (!values || values.length < 2) return [];
-  const [rawHeaders, ...rows] = values;
+function mapDbCandidate(row) {
+  const resume = normalizeResumeUrl(row.resume_url);
+  const interviewStatusRaw = (row.interview_status || '').trim();
+  const status =
+    STATUS_MAP[interviewStatusRaw.toLowerCase()] ||
+    interviewStatusRaw ||
+    'New';
 
-  // ✅ FIX 1: Trim ALL header keys — removes \n, spaces, hidden chars
-  const headers = rawHeaders.map(h => (h || '').trim());
-
-  console.log('Sheet headers:', headers); // debug — remove later
-
-  return rows
-    .filter(r => r.some(c => c?.trim()))
-    .map((row, i) => {
-      const obj = {
-        id: i + 1,
-        appliedDate: new Date().toISOString().split('T')[0],
-        status: 'New',
-        notes: '',
-        resumeUrl: null,
-        resume_url: null,
-      };
-
-      // Map all columns using trimmed headers
-      headers.forEach((h, j) => {
-        obj[h] = (row[j] || '').trim();
-      });
-
-      // ATS Score
-      obj['ATS Score'] = parseATS(obj['ATS Score']);
-
-      // Status from Interview Status column
-      const interviewStatus = (obj['Interview Status'] || '').trim();
-      if (interviewStatus) {
-        obj.status =
-          STATUS_MAP[interviewStatus.toLowerCase()] ||
-          interviewStatus ||
-          'New';
-      }
-
-      // Interview Date
-      if (obj['Interview Date']) {
-        obj.interviewDate = obj['Interview Date'];
-      }
-
-      // ✅ FIX 2: Resume URL — handle all Google Drive URL formats
-      const rawResumeUrl = (obj['Resume URL'] || '').trim();
-      if (rawResumeUrl) {
-        let u = rawResumeUrl;
-
-        // Convert any Drive URL to /preview format
-        const fileIdMatch = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-        const openIdMatch = u.match(/open\?id=([a-zA-Z0-9_-]+)/);
-        const ucIdMatch = u.match(/uc\?.*id=([a-zA-Z0-9_-]+)/);
-
-        let fileId = null;
-        if (fileIdMatch) fileId = fileIdMatch[1];
-        else if (openIdMatch) fileId = openIdMatch[1];
-        else if (ucIdMatch) fileId = ucIdMatch[1];
-
-        if (fileId) {
-          u = 'https://drive.google.com/file/d/' + fileId + '/preview';
-        }
-
-        // Set both field names so ResumeTab finds it either way
-        obj.resumeUrl = u;
-        obj.resume_url = u;
-      }
-
-      return obj;
-    });
+  return {
+    id: row.id,
+    Name: row.name || '',
+    Email: row.email || '',
+    Phone: row.phone || '',
+    City: row.city || '',
+    'Job title': row.job_title || '',
+    Skills: row.skills || '',
+    'Educational Qualification': row.education || '',
+    'Job History': row.job_history || '',
+    'HR Evaluation': row.hr_evaluation || '',
+    'ATS Score': Math.round(row.ats_score || 0),
+    'Interview Status': interviewStatusRaw,
+    'Interview Date': row.interview_date || '',
+    'Resume URL': row.resume_url || '',
+    status,
+    notes: row.notes || '',
+    interviewDate: row.interview_date || '',
+    resumeUrl: resume,
+    resume_url: resume,
+    appliedDate: row.applied_date || new Date().toISOString().split('T')[0],
+  };
 }
 
 // ── Auth Store ────────────────────────────────────────────────────────────────
@@ -161,112 +127,155 @@ export const useAppStore = create(
     (set, get) => ({
       candidates: [],
       loading: false,
-      sheetError: null,
-      apiKey: DEFAULT_API_KEY,
+      error: null,
       darkMode: false,
       lastRefresh: null,
-
-      // ✅ FIX 3: Persist status + notes overrides so they survive refresh
-      candidateOverrides: {},
 
       setDarkMode: v => {
         set({ darkMode: v });
         document.documentElement.classList.toggle('dark', v);
       },
 
-      setApiKey: k => set({ apiKey: k }),
-
-      fetchCandidates: async keyOverride => {
-        const key = keyOverride || get().apiKey || DEFAULT_API_KEY;
-        set({ loading: true, sheetError: null });
-
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Sheet1?key=${key}`;
-        const proxies = [
-          url,
-          `https://corsproxy.io/?${encodeURIComponent(url)}`,
-          `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-        ];
-
-        let lastErr = null;
-
-        for (const u of proxies) {
-          try {
-            const res = await fetch(u, {
-              headers: { Accept: 'application/json' },
-            });
-            const text = await res.text();
-            let json;
-            try {
-              json = JSON.parse(text);
-            } catch {
-              continue;
-            }
-            if (json.error) {
-              lastErr = new Error(json.error.message);
-              continue;
-            }
-            if (json.values) {
-              const rawData = parseSheetData(json.values);
-
-              // ✅ Merge saved overrides (status/notes) on top of fresh sheet data
-              const overrides = get().candidateOverrides || {};
-              const merged = rawData.map(c => ({
-                ...c,
-                ...(overrides[c.id] || {}),
-              }));
-
-              set({
-                candidates: merged,
-                loading: false,
-                lastRefresh: new Date().toISOString(),
-              });
-              return merged;
-            }
-          } catch (e) {
-            lastErr = e;
+      fetchCandidates: async () => {
+        set({ loading: true, error: null });
+        try {
+          const res = await fetch(`${API_BASE}/candidates/`, {
+            headers: { Accept: 'application/json' },
+          });
+          if (!res.ok) {
+            const txt = await res.text();
+            throw new Error(`Backend error ${res.status}: ${txt.slice(0, 200)}`);
           }
+          const rows = await res.json();
+          const mapped = (rows || []).map(mapDbCandidate);
+          set({
+            candidates: mapped,
+            loading: false,
+            lastRefresh: new Date().toISOString(),
+          });
+          return mapped;
+        } catch (e) {
+          set({
+            loading: false,
+            error: e?.message || 'Failed to fetch candidates from database',
+          });
+          return [];
         }
-
-        set({
-          loading: false,
-          sheetError: lastErr?.message || 'Failed to fetch data',
-        });
-        return [];
       },
 
-      // ✅ FIX 4: Save status to overrides so it persists across page refresh
-      updateCandidateStatus: (id, status) => {
+      updateCandidateStatus: async (id, status) => {
         set(s => ({
-          candidateOverrides: {
-            ...s.candidateOverrides,
-            [id]: { ...(s.candidateOverrides[id] || {}), status },
-          },
           candidates: s.candidates.map(c =>
-            c.id === id ? { ...c, status } : c
+            c.id === id ? { ...c, status, 'Interview Status': status } : c
           ),
         }));
+        try {
+          await fetch(`${API_BASE}/candidates/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ interview_status: status }),
+          });
+        } catch (e) {
+          set({ error: e?.message || 'Failed to update status' });
+        }
       },
 
-      // ✅ FIX 5: Save notes to overrides so they persist across page refresh
-      updateCandidateNotes: (id, notes) => {
+      updateCandidateNotes: async (id, notes) => {
         set(s => ({
-          candidateOverrides: {
-            ...s.candidateOverrides,
-            [id]: { ...(s.candidateOverrides[id] || {}), notes },
-          },
           candidates: s.candidates.map(c =>
             c.id === id ? { ...c, notes } : c
           ),
         }));
+        try {
+          await fetch(`${API_BASE}/candidates/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes }),
+          });
+        } catch (e) {
+          set({ error: e?.message || 'Failed to save notes' });
+        }
+      },
+
+      // Admin-only: moves a candidate to the trash (soft delete, restorable).
+      deleteCandidate: async (id, role) => {
+        try {
+          const res = await fetch(`${API_BASE}/candidates/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-User-Role': role || '' },
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to delete candidate');
+          set(s => ({ candidates: s.candidates.filter(c => c.id !== id) }));
+          return true;
+        } catch (e) {
+          set({ error: e?.message || 'Failed to delete candidate' });
+          return false;
+        }
+      },
+
+      duplicateCandidate: async (id) => {
+        try {
+          const res = await fetch(`${API_BASE}/candidates/${id}/duplicate`, { method: 'POST' });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to duplicate candidate');
+          const row = await res.json();
+          const mapped = mapDbCandidate(row);
+          set(s => ({ candidates: [mapped, ...s.candidates] }));
+          return mapped;
+        } catch (e) {
+          set({ error: e?.message || 'Failed to duplicate candidate' });
+          return null;
+        }
+      },
+
+      fetchTrash: async (role) => {
+        try {
+          const res = await fetch(`${API_BASE}/candidates/trash`, {
+            headers: { 'X-User-Role': role || '' },
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to load trash');
+          const rows = await res.json();
+          return (rows || []).map(mapDbCandidate);
+        } catch (e) {
+          set({ error: e?.message || 'Failed to load trash' });
+          return [];
+        }
+      },
+
+      restoreCandidate: async (id, role) => {
+        try {
+          const res = await fetch(`${API_BASE}/candidates/${id}/restore`, {
+            method: 'POST',
+            headers: { 'X-User-Role': role || '' },
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to restore candidate');
+          const row = await res.json();
+          const mapped = mapDbCandidate(row);
+          set(s => ({ candidates: [mapped, ...s.candidates] }));
+          return mapped;
+        } catch (e) {
+          set({ error: e?.message || 'Failed to restore candidate' });
+          return null;
+        }
+      },
+
+      permanentlyDeleteCandidate: async (id, role) => {
+        try {
+          const res = await fetch(`${API_BASE}/candidates/${id}/permanent`, {
+            method: 'DELETE',
+            headers: { 'X-User-Role': role || '' },
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to permanently delete candidate');
+          return true;
+        } catch (e) {
+          set({ error: e?.message || 'Failed to permanently delete candidate' });
+          return false;
+        }
       },
     }),
     {
       name: 'autoflex-app',
-      // ✅ Persist overrides + settings (NOT candidates — always reload fresh from sheet)
       partialize: s => ({
-        apiKey: s.apiKey,
         darkMode: s.darkMode,
-        candidateOverrides: s.candidateOverrides,
       }),
     }
   )

@@ -7,13 +7,18 @@ from sqlalchemy import (
     Float,
     DateTime,
     Text,
-    ForeignKey
+    ForeignKey,
+    text,
 )
 
 from sqlalchemy.orm import sessionmaker, declarative_base
 from datetime import datetime
+from app.core.config import settings
 
-DATABASE_URL = "postgresql+psycopg2://postgres:Zaq1xsw2%40@127.0.0.1:5432/autoflex_hr"
+DATABASE_URL = settings.DATABASE_URL
+
+# DATABASE_URL = "postgresql+psycopg2://postgres:Zaq1xsw2%40@127.0.0.1:5432/autoflex_hr"
+# DATABASE_URL = "postgresql+psycopg2://autoflexuser:Snoopy%402498@172.16.1.1:5432/autoflexhr"
 
 engine = create_engine(
     DATABASE_URL,
@@ -62,6 +67,8 @@ class Candidate(Base):
     assigned_recruiter_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
 
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
@@ -82,3 +89,13 @@ def get_db():
 
 def create_tables():
     Base.metadata.create_all(bind=engine)
+    # Base.metadata.create_all() only creates missing tables, it won't add new
+    # columns to a table that already exists from before this field was added.
+    with engine.connect() as conn:
+        conn.execute(text(
+            "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        conn.execute(text(
+            "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP"
+        ))
+        conn.commit()

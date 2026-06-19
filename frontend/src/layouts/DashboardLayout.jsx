@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiHome, FiUsers, FiBarChart2, FiTrello, FiCpu, FiSettings, FiZap, FiLogOut, FiSearch, FiBell, FiSun, FiMoon, FiRefreshCw, FiMenu, FiX, FiChevronRight } from 'react-icons/fi';
+import { FiHome, FiUsers, FiBarChart2, FiTrello, FiCpu, FiSettings, FiZap, FiLogOut, FiSearch, FiBell, FiSun, FiMoon, FiRefreshCw, FiMenu, FiX, FiChevronRight, FiTrash2 } from 'react-icons/fi';
 import { useAuthStore, useAppStore } from '../context/store';
 import { initials, avatarColor } from '../utils/helpers';
 import toast from 'react-hot-toast';
@@ -12,6 +12,7 @@ const NAV = [
   { path: '/analytics', label: 'Analytics', icon: FiBarChart2 },
   { path: '/pipeline', label: 'Pipeline', icon: FiTrello },
   { path: '/ai-assistant', label: 'AI Assistant', icon: FiCpu },
+  { path: '/trash', label: 'Trash', icon: FiTrash2, adminOnly: true },
   { path: '/settings', label: 'Settings', icon: FiSettings, adminOnly: true },
 ];
 
@@ -198,9 +199,9 @@ export default function DashboardLayout() {
         </header>
 
         {/* Error banner */}
-        {useAppStore.getState().sheetError && (
+        {useAppStore.getState().error && (
           <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2.5 flex items-center justify-between text-sm text-red-700 dark:text-red-400">
-            <span>⚠️ {useAppStore.getState().sheetError}</span>
+            <span>⚠️ {useAppStore.getState().error}</span>
             <button onClick={handleRefresh} className="text-xs font-semibold underline">Retry</button>
           </div>
         )}

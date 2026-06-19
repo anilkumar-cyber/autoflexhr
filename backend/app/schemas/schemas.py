@@ -46,6 +46,8 @@ class CandidateUpdate(CandidateBase):
 class CandidateResponse(CandidateBase):
     id: int
     created_at: Optional[datetime] = None
+    is_deleted: Optional[bool] = False
+    deleted_at: Optional[datetime] = None
     class Config:
         from_attributes = True
 

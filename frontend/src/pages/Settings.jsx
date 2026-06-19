@@ -1,11 +1,8 @@
-import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FiSettings, FiLink, FiUsers, FiMoon, FiSun, FiEye, FiEyeOff, FiRefreshCw, FiShield, FiGrid } from 'react-icons/fi';
+import { FiSettings, FiUsers, FiMoon, FiSun, FiRefreshCw, FiShield, FiDatabase } from 'react-icons/fi';
 import { useAppStore, useAuthStore } from '../context/store';
 import { initials, avatarColor } from '../utils/helpers';
 import toast from 'react-hot-toast';
-
-const COLUMNS = ['Name','Email','Phone','City','Educational Qualification','Job title','Job History','Skills','HR Evaluation','ATS Score','Interview Status','Interview Date','Resume URL'];
 
 function Section({ title, icon: Icon, children }) {
   return (
@@ -22,11 +19,8 @@ function Section({ title, icon: Icon, children }) {
 }
 
 export default function Settings() {
-  const { apiKey, setApiKey, fetchCandidates, loading, darkMode, setDarkMode } = useAppStore();
+  const { fetchCandidates, loading, darkMode, setDarkMode, lastRefresh, candidates } = useAppStore();
   const { user, users } = useAuthStore();
-  const [localKey, setLocalKey] = useState(apiKey);
-  const [showKey, setShowKey] = useState(false);
-  const [saved, setSaved] = useState(false);
 
   const isAdmin = user?.role === 'Admin';
 
@@ -42,15 +36,12 @@ export default function Settings() {
     );
   }
 
-  const handleSave = () => {
-    setApiKey(localKey);
-    setSaved(true);
-    setTimeout(() => {
-      fetchCandidates(localKey);
-      toast.success('API key saved. Syncing data…');
-    }, 200);
-    setTimeout(() => setSaved(false), 3000);
+  const handleRefresh = async () => {
+    await fetchCandidates();
+    toast.success('Candidates reloaded from database');
   };
+
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
@@ -62,49 +53,26 @@ export default function Settings() {
         <p className="text-gray-400 text-sm mt-1">Admin-only platform configuration</p>
       </motion.div>
 
-      {/* Google Sheets */}
-      <Section title="Google Sheets Integration" icon={FiLink}>
+      {/* PostgreSQL Source */}
+      <Section title="PostgreSQL Database" icon={FiDatabase}>
         <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Google API Key</label>
-            <div className="relative">
-              <input value={localKey} onChange={e => { setLocalKey(e.target.value); setSaved(false); }} type={showKey ? 'text' : 'password'}
-                placeholder="AIza…"
-                className="input pr-10 font-mono text-sm" />
-              <button onClick={() => setShowKey(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
-                {showKey ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
-              </button>
-            </div>
-            <p className="text-xs text-gray-400 mt-1.5">
-              Get your key from <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">Google Cloud Console</a> → Enable Sheets API → Create API Key
-            </p>
-          </div>
-
           <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 font-mono text-xs text-gray-500 dark:text-gray-400 space-y-1">
-            <div><span className="text-gray-400">Sheet ID:</span> 1_da4wqDPxCKnJXF9O5Tq0YiHfTWS0Iy_MsQqplX4W6U</div>
-            <div><span className="text-gray-400">Sheet Name:</span> Sheet1</div>
+            <div><span className="text-gray-400">API URL:</span> {apiUrl}</div>
+            <div><span className="text-gray-400">Endpoint:</span> GET {apiUrl}/candidates/</div>
+            <div><span className="text-gray-400">Candidates loaded:</span> {candidates.length}</div>
+            <div><span className="text-gray-400">Last refresh:</span> {lastRefresh ? new Date(lastRefresh).toLocaleString() : '—'}</div>
           </div>
 
           <div className="flex items-center gap-3">
-            <button onClick={handleSave} className="btn-primary flex items-center gap-2 text-sm">
+            <button onClick={handleRefresh} disabled={loading} className="btn-primary flex items-center gap-2 text-sm">
               <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              {loading ? 'Connecting…' : 'Save & Sync'}
+              {loading ? 'Loading…' : 'Reload from Database'}
             </button>
-            {saved && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-green-500 text-sm font-semibold">✓ Saved & syncing</motion.span>}
           </div>
-        </div>
-      </Section>
 
-      {/* Column mapping */}
-      <Section title="Google Sheet Column Mapping" icon={FiGrid}>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Your Google Sheet's Row 1 must have these exact column headers:</p>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {COLUMNS.map((col, i) => (
-            <div key={col} className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl px-3 py-2">
-              <span className="text-xs font-bold text-gray-300 dark:text-gray-600 w-4">{i + 1}</span>
-              <span className="text-xs font-mono text-gray-700 dark:text-gray-300">{col}</span>
-            </div>
-          ))}
+          <p className="text-xs text-gray-400">
+            Candidates are read from PostgreSQL via the backend API. To add records, POST to <code className="font-mono">/candidates/</code> or <code className="font-mono">/candidates/bulk</code>.
+          </p>
         </div>
       </Section>
 
@@ -151,8 +119,8 @@ export default function Settings() {
       <Section title="Backend Configuration" icon={FiShield}>
         <div className="space-y-3">
           <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 font-mono text-xs text-gray-500 dark:text-gray-400 space-y-2">
-            <div><span className="text-gray-400">API URL:</span> {import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}</div>
-            <div><span className="text-gray-400">Docs:</span> {import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/docs</div>
+            <div><span className="text-gray-400">API URL:</span> {apiUrl}</div>
+            <div><span className="text-gray-400">Docs:</span> {apiUrl}/docs</div>
           </div>
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-400">
             <div className="font-bold mb-2">Start FastAPI Backend:</div>

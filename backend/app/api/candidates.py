@@ -1,85 +1,24 @@
-"""Candidates API routes"""
-from fastapi import APIRouter, Depends, HTTPException, Query
+"""Candidates API routes (PostgreSQL only)"""
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import date
 from app.database.models import Candidate, get_db
 from app.schemas.schemas import CandidateCreate, CandidateUpdate, CandidateResponse
-from app.core.security import get_current_user
-import httpx
+from app.core.security import require_admin
 
 router = APIRouter(prefix="/candidates", tags=["Candidates"])
 
-SHEET_ID = "1_da4wqDPxCKnJXF9O5Tq0YiHfTWS0Iy_MsQqplX4W6U"
-SHEET_NAME = "Sheet1"
 
-STATUS_MAP = {
-    "shortlisted": "Shortlisted",
-    "interview scheduled": "Interview Scheduled",
-    "offer extended": "Offer Extended",
-    "rejected": "Rejected",
-    "on hold": "On Hold",
-    "screening": "Screening",
-    "new": "New",
-}
+@router.get("/trash", response_model=List[CandidateResponse])
+async def get_trash(db: Session = Depends(get_db), _admin=Depends(require_admin)):
+    return (
+        db.query(Candidate)
+        .filter(Candidate.is_deleted == True)
+        .order_by(Candidate.deleted_at.desc())
+        .all()
+    )
 
-def parse_ats(val):
-    try:
-        raw = float(val)
-        return round(raw * 10) if 0 < raw <= 10 else round(raw)
-    except:
-        return 0
-
-@router.get("/sync-sheets")
-async def sync_from_sheets(api_key: str = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    """Sync candidates from Google Sheets into database."""
-    url = f"https://sheets.googleapis.com/v4/spreadsheets/{SHEET_ID}/values/{SHEET_NAME}?key={api_key}"
-    async with httpx.AsyncClient() as client:
-        res = await client.get(url, timeout=15)
-        if not res.is_success:
-            raise HTTPException(status_code=400, detail=f"Sheets API error: {res.text}")
-        data = res.json()
-
-    if not data.get("values") or len(data["values"]) < 2:
-        return {"synced": 0, "message": "No data found in sheet"}
-
-    headers, *rows = data["values"]
-    synced = 0
-    for row in rows:
-        if not any(c.strip() for c in row):
-            continue
-        obj = {h: (row[i] if i < len(row) else "").strip() for i, h in enumerate(headers)}
-        status_raw = obj.get("Interview Status", "").strip().lower()
-        resume_url = obj.get("Resume URL", "").strip()
-        if resume_url:
-            resume_url = resume_url.replace("/view", "/preview")
-
-        existing = db.query(Candidate).filter(Candidate.email == obj.get("Email", "")).first()
-        candidate_data = dict(
-            name=obj.get("Name", ""),
-            email=obj.get("Email", ""),
-            phone=obj.get("Phone", ""),
-            city=obj.get("City", ""),
-            education=obj.get("Educational Qualification", ""),
-            job_title=obj.get("Job title", ""),
-            job_history=obj.get("Job History", ""),
-            skills=obj.get("Skills", ""),
-            hr_evaluation=obj.get("HR Evaluation", ""),
-            ats_score=parse_ats(obj.get("ATS Score", "0")),
-            interview_status=STATUS_MAP.get(status_raw, obj.get("Interview Status", "New") or "New"),
-            interview_date=obj.get("Interview Date", ""),
-            resume_url=resume_url,
-            applied_date=str(date.today()),
-        )
-        if existing:
-            for k, v in candidate_data.items():
-                setattr(existing, k, v)
-        else:
-            db.add(Candidate(**candidate_data))
-        synced += 1
-
-    db.commit()
-    return {"synced": synced, "message": f"Successfully synced {synced} candidates"}
 
 @router.get("/", response_model=List[CandidateResponse])
 async def get_candidates(
@@ -87,26 +26,53 @@ async def get_candidates(
     status: Optional[str] = None,
     job_title: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
 ):
-    q = db.query(Candidate)
+    q = db.query(Candidate).filter(Candidate.is_deleted == False)
     if search:
-        q = q.filter(Candidate.name.ilike(f"%{search}%") | Candidate.email.ilike(f"%{search}%") | Candidate.skills.ilike(f"%{search}%"))
+        q = q.filter(
+            Candidate.name.ilike(f"%{search}%")
+            | Candidate.email.ilike(f"%{search}%")
+            | Candidate.skills.ilike(f"%{search}%")
+        )
     if status:
         q = q.filter(Candidate.interview_status == status)
     if job_title:
         q = q.filter(Candidate.job_title.ilike(f"%{job_title}%"))
     return q.order_by(Candidate.created_at.desc()).all()
 
+
 @router.get("/{candidate_id}", response_model=CandidateResponse)
-async def get_candidate(candidate_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+async def get_candidate(candidate_id: int, db: Session = Depends(get_db)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
     return c
 
+
+@router.post("/", response_model=CandidateResponse)
+async def create_candidate(payload: CandidateCreate, db: Session = Depends(get_db)):
+    c = Candidate(**payload.model_dump(exclude_unset=True))
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return c
+
+
+@router.post("/bulk", response_model=List[CandidateResponse])
+async def bulk_create_candidates(payload: List[CandidateCreate], db: Session = Depends(get_db)):
+    created = []
+    for item in payload:
+        c = Candidate(**item.model_dump(exclude_unset=True))
+        db.add(c)
+        created.append(c)
+    db.commit()
+    for c in created:
+        db.refresh(c)
+    return created
+
+
 @router.put("/{candidate_id}", response_model=CandidateResponse)
-async def update_candidate(candidate_id: int, update: CandidateUpdate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+async def update_candidate(candidate_id: int, update: CandidateUpdate, db: Session = Depends(get_db)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -116,11 +82,65 @@ async def update_candidate(candidate_id: int, update: CandidateUpdate, db: Sessi
     db.refresh(c)
     return c
 
+
+@router.post("/{candidate_id}/duplicate", response_model=CandidateResponse)
+async def duplicate_candidate(candidate_id: int, db: Session = Depends(get_db)):
+    c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    copy = Candidate(
+        name=f"{c.name} (Copy)" if c.name else c.name,
+        email=c.email,
+        phone=c.phone,
+        city=c.city,
+        education=c.education,
+        job_title=c.job_title,
+        job_history=c.job_history,
+        skills=c.skills,
+        hr_evaluation=c.hr_evaluation,
+        ats_score=c.ats_score,
+        interview_status="New",
+        interview_date=c.interview_date,
+        resume_url=c.resume_url,
+        applied_date=datetime.utcnow().strftime("%Y-%m-%d"),
+        notes=c.notes,
+        assigned_recruiter_id=c.assigned_recruiter_id,
+    )
+    db.add(copy)
+    db.commit()
+    db.refresh(copy)
+    return copy
+
+
 @router.delete("/{candidate_id}")
-async def delete_candidate(candidate_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+async def delete_candidate(candidate_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin)):
+    """Soft delete: moves the candidate to trash so it can be restored later."""
+    c = db.query(Candidate).filter(Candidate.id == candidate_id, Candidate.is_deleted == False).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    c.is_deleted = True
+    c.deleted_at = datetime.utcnow()
+    db.commit()
+    return {"message": "Candidate moved to trash"}
+
+
+@router.post("/{candidate_id}/restore", response_model=CandidateResponse)
+async def restore_candidate(candidate_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin)):
+    c = db.query(Candidate).filter(Candidate.id == candidate_id, Candidate.is_deleted == True).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Candidate not found in trash")
+    c.is_deleted = False
+    c.deleted_at = None
+    db.commit()
+    db.refresh(c)
+    return c
+
+
+@router.delete("/{candidate_id}/permanent")
+async def permanently_delete_candidate(candidate_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
     db.delete(c)
     db.commit()
-    return {"message": "Candidate deleted"}
+    return {"message": "Candidate permanently deleted"}

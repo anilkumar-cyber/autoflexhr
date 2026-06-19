@@ -5,12 +5,9 @@ import os
 load_dotenv()
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql+psycopg2://postgres:Zaq1xsw2%40@127.0.0.1:5432/autoflex_hr"
-    )
+    DATABASE_URL: str = os.getenv("DATABASE_URL")
 
-    OPENAI_API_KEY: str = os.getenv("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", "")
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
 
     SECRET_KEY: str = os.getenv(
         "SECRET_KEY",
@@ -27,5 +24,8 @@ class Settings(BaseSettings):
         "FRONTEND_URL",
         "http://localhost:5173"
     )
+
+    class Config:
+        env_file = ".env"
 
 settings = Settings()

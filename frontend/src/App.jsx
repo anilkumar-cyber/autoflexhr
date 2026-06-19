@@ -10,6 +10,7 @@ import Analytics from './pages/Analytics';
 import Pipeline from './pages/Pipeline';
 import AIAssistant from './pages/AIAssistant';
 import Settings from './pages/Settings';
+import Trash from './pages/Trash';
 
 function ProtectedRoute({ children }) {
   const { user } = useAuthStore();
@@ -41,6 +42,7 @@ export default function App() {
           <Route path="analytics" element={<Analytics />} />
           <Route path="pipeline" element={<Pipeline />} />
           <Route path="ai-assistant" element={<AIAssistant />} />
+          <Route path="trash" element={<Trash />} />
           <Route path="settings" element={<Settings />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

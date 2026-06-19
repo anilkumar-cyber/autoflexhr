@@ -219,7 +219,7 @@ export default function Dashboard() {
               </motion.span>
             );
           })}
-          {topSkills.length === 0 && <span className="text-gray-400 text-sm">No skill data yet — load candidates from Google Sheets.</span>}
+          {topSkills.length === 0 && <span className="text-gray-400 text-sm">No skill data yet — load candidates from the database.</span>}
         </div>
       </motion.div>
     </div>

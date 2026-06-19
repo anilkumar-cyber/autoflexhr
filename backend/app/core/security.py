@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from app.core.config import settings
 
@@ -31,3 +31,12 @@ def decode_token(token: str) -> dict:
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     payload = decode_token(token)
     return payload
+
+async def require_admin(x_user_role: Optional[str] = Header(default=None)):
+    """The app's frontend auth is local-only (no JWT issued for these calls yet),
+    so this trusts the X-User-Role header the client sends. It blocks accidental
+    non-admin access but is not a substitute for real auth once login is wired
+    to the backend's JWT flow."""
+    if x_user_role != "Admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return x_user_role

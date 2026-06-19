@@ -1,10 +1,20 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-import json
 
-app = FastAPI(title="AutoFlexHR AI Backend")
+from app.database.models import create_tables
+from app.api import candidates as candidates_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_tables()
+    yield
+
+
+app = FastAPI(title="AutoFlexHR AI Backend", lifespan=lifespan)
 
 # CORS Configuration
 app.add_middleware(
@@ -14,6 +24,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(candidates_router.router)
 
 # ─────────────────────────────────────────────
 # PYDANTIC MODELS
