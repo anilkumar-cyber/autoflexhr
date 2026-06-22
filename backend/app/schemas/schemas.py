@@ -1,5 +1,6 @@
 """Pydantic schemas for request/response validation"""
-from pydantic import BaseModel, EmailStr
+import json
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List
 from datetime import datetime
 
@@ -36,6 +37,15 @@ class CandidateBase(BaseModel):
     resume_url: Optional[str] = None
     applied_date: Optional[str] = None
     notes: Optional[str] = ""
+
+    @field_validator("job_history", mode="before")
+    @classmethod
+    def stringify_job_history(cls, v):
+        # The n8n resume-parsing workflow stores this as jsonb (structured
+        # role/period/responsibilities), not plain text.
+        if isinstance(v, (dict, list)):
+            return json.dumps(v)
+        return v
 
 class CandidateCreate(CandidateBase):
     pass
