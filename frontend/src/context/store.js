@@ -79,6 +79,14 @@ export const useAuthStore = create(
           role: 'Recruiter',
           createdAt: new Date().toISOString(),
         },
+        {
+          id: 3,
+          name: 'Employee',
+          email: 'employee@autoflex.com',
+          password: 'employee123',
+          role: 'Employee',
+          createdAt: new Date().toISOString(),
+        },
       ],
       login: (email, password) => {
         const users = get().users;
