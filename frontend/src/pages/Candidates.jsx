@@ -135,7 +135,7 @@ function EmailModal({ candidate, onClose }) {
 }
 
 // ── AI Analysis Modal ─────────────────────────────────────────────────────────
-// const OAI_KEY = 'autoflex_oai_key';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 function AIModal({ candidate, type, onClose }) {
   const [loading, setLoading] = useState(false);
@@ -148,41 +148,28 @@ function AIModal({ candidate, type, onClose }) {
     setError(null);
     setResult(null);
 
-    const info = `Name: ${candidate.Name || ''}
-Job Title: ${candidate['Job title'] || ''}
-Skills: ${candidate.Skills || ''}
-Job History: ${candidate['Job History'] || ''}
-Education: ${candidate['Educational Qualification'] || ''}
-ATS Score: ${candidate['ATS Score'] || 0}
-HR Evaluation: ${candidate['HR Evaluation'] || ''}
-City: ${candidate.City || ''}`;
-
-    const prompt = isInterview
-      ? `You are an expert HR recruiter. Analyze this candidate. Return ONLY valid JSON, no markdown, no backticks.
-${info}
-{"summary":"...","overall_rating":"Excellent|Good|Average|Below Average","hire_recommendation":"Strong Hire|Hire|Maybe|No Hire","confidence":85,"communication_score":78,"leadership_potential":"High|Medium|Low","strengths":["s1","s2","s3"],"weaknesses":["w1","w2"],"technical_questions":[{"q":"?","purpose":"why"},{"q":"?","purpose":"why"},{"q":"?","purpose":"why"},{"q":"?","purpose":"why"}],"hr_questions":[{"q":"?","purpose":"why"},{"q":"?","purpose":"why"},{"q":"?","purpose":"why"}]}`
-      : `You are a resume fraud detection expert. Analyze this resume. Return ONLY valid JSON, no markdown, no backticks.
-${info}
-{"fraud_risk_score":15,"risk_level":"Low|Medium|High|Critical","confidence":88,"overall_verdict":"Likely Authentic|Needs Verification|Suspicious|Fraudulent","suspicious_indicators":[{"indicator":"desc","severity":"low|medium|high","details":"explanation"}],"authentic_signals":["s1","s2"],"recommendation":"Proceed|Verify Claims|Flag for Review|Reject","verification_steps":["s1","s2","s3"]}`;
+    const payload = {
+      name: candidate.Name || '',
+      job_title: candidate['Job title'] || '',
+      education: candidate['Educational Qualification'] || '',
+      job_history: candidate['Job History'] || '',
+      skills: candidate.Skills || '',
+      ats_score: candidate['ATS Score'] || 0,
+      ...(isInterview ? { hr_evaluation: candidate['HR Evaluation'] || '' } : {}),
+    };
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch(`${API_BASE}/ai/${isInterview ? 'interview' : 'fraud'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1500,
-          messages: [{ role: 'user', content: prompt }],
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
-        throw new Error(e?.error?.message || `API error ${res.status}`);
+        throw new Error(e?.detail || `API error ${res.status}`);
       }
-      const data = await res.json();
-      const text = (data.content || []).map(b => b.text || '').join('').trim();
-      const cleaned = text.replace(/```json|```/g, '').trim();
-      setResult(JSON.parse(cleaned));
+      const { data } = await res.json();
+      setResult(data);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -249,20 +236,9 @@ ${info}
               <div className="bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/30 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-bold text-brand-700 dark:text-brand-400">Executive Summary</div>
-                  <div className="flex gap-2">
-                    <span className="badge bg-green-100 text-green-700">{result.hire_recommendation}</span>
-                    <span className="badge bg-brand-100 text-brand-700">{result.overall_rating}</span>
-                  </div>
+                  <span className="badge bg-green-100 text-green-700">{result.hiring_recommendation?.recommendation}</span>
                 </div>
-                <p className="text-sm text-gray-700 dark:text-gray-300">{result.summary}</p>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                {[['Confidence', `${result.confidence}%`, '#6172f3'], ['Communication', `${result.communication_score}/100`, '#10b981'], ['Leadership', result.leadership_potential, '#f59e0b']].map(([l, v, c]) => (
-                  <div key={l} className="card p-3 text-center">
-                    <div className="text-lg font-bold" style={{ color: c }}>{v}</div>
-                    <div className="text-xs text-gray-400">{l}</div>
-                  </div>
-                ))}
+                <p className="text-sm text-gray-700 dark:text-gray-300">{result.candidate_summary}</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4">
@@ -278,76 +254,82 @@ ${info}
                   ))}
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="card p-4">
+                  <div className="text-sm font-bold text-gray-900 dark:text-white mb-2">Communication</div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">{result.communication_analysis}</p>
+                </div>
+                <div className="card p-4">
+                  <div className="text-sm font-bold text-gray-900 dark:text-white mb-2">Leadership Potential</div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">{result.leadership_analysis}</p>
+                </div>
+              </div>
               <div className="card p-4">
                 <div className="font-bold text-gray-900 dark:text-white mb-3 text-sm">Technical Interview Questions</div>
-                <div className="space-y-3">
-                  {result.technical_questions?.map((q, i) => (
-                    <div key={i} className="border-l-2 border-brand-400 pl-3">
-                      <div className="text-sm text-gray-900 dark:text-white font-medium">{q.q}</div>
-                      <div className="text-xs text-gray-400 mt-0.5">Purpose: {q.purpose}</div>
-                    </div>
+                <div className="space-y-2">
+                  {result.technical_interview_questions?.map((q, i) => (
+                    <div key={i} className="border-l-2 border-brand-400 pl-3 text-sm text-gray-900 dark:text-white">Q{i + 1}: {q}</div>
                   ))}
                 </div>
               </div>
               <div className="card p-4">
                 <div className="font-bold text-gray-900 dark:text-white mb-3 text-sm">HR Questions</div>
-                <div className="space-y-3">
-                  {result.hr_questions?.map((q, i) => (
-                    <div key={i} className="border-l-2 border-green-400 pl-3">
-                      <div className="text-sm text-gray-900 dark:text-white font-medium">{q.q}</div>
-                      <div className="text-xs text-gray-400 mt-0.5">Purpose: {q.purpose}</div>
-                    </div>
+                <div className="space-y-2">
+                  {result.hr_interview_questions?.map((q, i) => (
+                    <div key={i} className="border-l-2 border-green-400 pl-3 text-sm text-gray-900 dark:text-white">Q{i + 1}: {q}</div>
                   ))}
                 </div>
+              </div>
+              <div className="bg-brand-50 dark:bg-brand-500/10 rounded-xl p-4">
+                <div className="font-bold text-sm text-gray-900 dark:text-white mb-1">
+                  {result.hiring_recommendation?.recommendation} · Confidence {result.hiring_recommendation?.confidence}
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">{result.hiring_recommendation?.reasoning}</p>
+                <p className="text-xs text-brand-600 dark:text-brand-400 font-medium">Next step: {result.hiring_recommendation?.next_steps}</p>
               </div>
             </div>
           )}
 
           {result && !isInterview && (
             <div className="space-y-4">
-              <div className={`rounded-xl p-5 text-center ${result.risk_level === 'Low' ? 'bg-green-50 dark:bg-green-900/20' : result.risk_level === 'Medium' ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
-                <div className="text-5xl font-bold mb-2" style={{ color: result.risk_level === 'Low' ? '#16a34a' : result.risk_level === 'Medium' ? '#d97706' : '#dc2626' }}>
+              <div className={`rounded-xl p-5 text-center ${result.risk_level === 'LOW' ? 'bg-green-50 dark:bg-green-900/20' : result.risk_level === 'MEDIUM' ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                <div className="text-5xl font-bold mb-2" style={{ color: result.risk_level === 'LOW' ? '#16a34a' : result.risk_level === 'MEDIUM' ? '#d97706' : '#dc2626' }}>
                   {result.fraud_risk_score}%
                 </div>
-                <div className="text-lg font-bold text-gray-900 dark:text-white">{result.overall_verdict}</div>
+                <div className="text-lg font-bold text-gray-900 dark:text-white">{result.recommendation?.status}</div>
                 <div className="text-sm text-gray-500 mt-1">Fraud Risk Score · Confidence: {result.confidence}%</div>
                 <div className="mt-3">
-                  <span className={`badge text-sm px-3 py-1 ${result.risk_level === 'Low' ? 'bg-green-100 text-green-700' : result.risk_level === 'Medium' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                  <span className={`badge text-sm px-3 py-1 ${result.risk_level === 'LOW' ? 'bg-green-100 text-green-700' : result.risk_level === 'MEDIUM' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
                     Risk Level: {result.risk_level}
                   </span>
                 </div>
               </div>
-              {result.suspicious_indicators?.length > 0 && (
-                <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4">
-                  <div className="font-bold text-red-700 dark:text-red-400 text-sm mb-2">Suspicious Indicators</div>
-                  {result.suspicious_indicators.map((ind, i) => (
-                    <div key={i} className="py-2 border-b border-red-100 dark:border-red-900/30 last:border-0">
+              {result.findings?.length > 0 && (
+                <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-4">
+                  <div className="font-bold text-gray-700 dark:text-gray-300 text-sm mb-2">Findings</div>
+                  {result.findings.map((f, i) => (
+                    <div key={i} className="py-2 border-b border-gray-100 dark:border-white/10 last:border-0">
                       <div className="flex items-center gap-2">
-                        <span className={`badge ${ind.severity === 'high' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{ind.severity}</span>
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ind.indicator}</span>
+                        <span className={`badge ${f.severity === 'none' ? 'bg-green-100 text-green-700' : f.severity === 'high' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{f.status}</span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{f.category}</span>
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">{ind.details}</div>
+                      <div className="text-xs text-gray-500 mt-1">{f.message}</div>
                     </div>
                   ))}
                 </div>
               )}
-              {result.authentic_signals?.length > 0 && (
-                <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4">
-                  <div className="font-bold text-green-700 dark:text-green-400 text-sm mb-2">Authentic Signals</div>
-                  {result.authentic_signals.map((s, i) => (
+              {result.suspicious_indicators?.length > 0 && (
+                <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4">
+                  <div className="font-bold text-red-700 dark:text-red-400 text-sm mb-2">Suspicious Indicators</div>
+                  {result.suspicious_indicators.map((s, i) => (
                     <div key={i} className="text-sm text-gray-700 dark:text-gray-300 py-1">• {s}</div>
                   ))}
                 </div>
               )}
               <div className="card p-4">
-                <div className="font-bold text-sm text-gray-900 dark:text-white mb-2">Recommendation: {result.recommendation}</div>
-                <div className="space-y-2">
-                  {result.verification_steps?.map((s, i) => (
-                    <div key={i} className="text-sm text-gray-600 dark:text-gray-400 flex gap-2">
-                      <span className="text-brand-500 font-bold">{i + 1}.</span>{s}
-                    </div>
-                  ))}
-                </div>
+                <div className="font-bold text-sm text-gray-900 dark:text-white mb-2">{result.recommendation?.status}</div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{result.recommendation?.message}</p>
+                <p className="text-sm text-brand-600 dark:text-brand-400 font-medium">Next: {result.recommendation?.next_action}</p>
               </div>
             </div>
           )}
