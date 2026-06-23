@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 
-from app.database.models import Candidate, Job, Referral, RewardRule, get_db, log_activity
+from app.database.models import Candidate, Job, Referral, RewardRule, get_db, log_activity, notify
 from app.schemas.schemas import ReferralResponse, ReferralStageUpdate, ReferralRewardUpdate, MatchResult
 from app.core.security import require_admin, get_actor_name
 from app.services.matching import compute_match
@@ -105,6 +105,7 @@ async def create_referral(
     db.refresh(referral)
 
     log_activity(db, employee_name, "referred", "candidate", candidate.id, f"Referred \"{candidate_name}\" for \"{job.title}\"")
+    notify(db, "Admin", "New referral submitted", f"{employee_name} referred \"{candidate_name}\" for \"{job.title}\"", link="/candidates", type="referral")
     return referral
 
 
@@ -143,6 +144,7 @@ async def update_referral_stage(referral_id: int, update: ReferralStageUpdate, d
     db.commit()
     db.refresh(ref)
     log_activity(db, actor, "status_change", "referral", ref.id, f"\"{ref.candidate_name}\": {old_stage} -> {ref.stage}")
+    notify(db, ref.employee_email, f"Referral update: {ref.candidate_name}", f"Now at stage \"{ref.stage}\" for \"{ref.job_title}\"", link="/employee/my-referrals", type="referral")
     return ref
 
 
@@ -159,6 +161,8 @@ async def update_referral_reward(referral_id: int, update: ReferralRewardUpdate,
     db.commit()
     db.refresh(ref)
     log_activity(db, actor, "reward_update", "referral", ref.id, f"\"{ref.candidate_name}\": reward marked {update.reward_status}")
+    if update.reward_status == "Paid":
+        notify(db, ref.employee_email, "Reward paid!", f"Your ${ref.reward_amount} reward for referring {ref.candidate_name} has been paid out.", link="/employee/wallet", type="reward")
     return ref
 
 

@@ -122,6 +122,18 @@ class RewardRule(Base):
     currency = Column(String(10), default="USD")
     active = Column(Boolean, default=True)
 
+class Notification(Base):
+    __tablename__ = "notifications"
+    id = Column(Integer, primary_key=True, index=True)
+    # Either a role ("Employee" | "Admin" | "Recruiter") to broadcast to everyone
+    # with that role, or a specific email for a targeted notification.
+    recipient_scope = Column(String(200), nullable=False, index=True)
+    type = Column(String(30), default="info")  # job|referral|reward|system
+    title = Column(String(200), nullable=False)
+    message = Column(Text, nullable=True)
+    link = Column(String(200), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 def get_db():
     db = SessionLocal()
     try:
@@ -168,6 +180,17 @@ def log_activity(db, actor: str, action: str, entity_type: str, entity_id: int, 
         entity_type=entity_type,
         entity_id=entity_id,
         details=details,
+    )
+    db.add(entry)
+    db.commit()
+
+def notify(db, recipient_scope: str, title: str, message: str = None, link: str = None, type: str = "info"):
+    entry = Notification(
+        recipient_scope=recipient_scope,
+        type=type,
+        title=title,
+        message=message,
+        link=link,
     )
     db.add(entry)
     db.commit()

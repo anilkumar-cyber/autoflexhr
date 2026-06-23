@@ -97,6 +97,18 @@ class ActivityLogResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# ── Notification ──────────────────────────────────────────────────────────────
+class NotificationResponse(BaseModel):
+    id: int
+    recipient_scope: str
+    type: str
+    title: str
+    message: Optional[str] = None
+    link: Optional[str] = None
+    created_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
 # ── Referral ──────────────────────────────────────────────────────────────────
 class ReferralResponse(BaseModel):
     id: int

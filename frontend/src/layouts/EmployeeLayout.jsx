@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiHome, FiBriefcase, FiUserPlus, FiCpu, FiList, FiGift, FiAward, FiUser, FiZap, FiLogOut, FiBell, FiSun, FiMoon, FiMenu, FiChevronRight } from 'react-icons/fi';
+import { FiHome, FiBriefcase, FiUserPlus, FiCpu, FiList, FiGift, FiAward, FiUser, FiZap, FiLogOut, FiSun, FiMoon, FiMenu, FiChevronRight } from 'react-icons/fi';
 import { useAuthStore, useAppStore } from '../context/store';
 import { initials, avatarColor } from '../utils/helpers';
+import NotificationBell from '../components/NotificationBell';
 import toast from 'react-hot-toast';
 
 const NAV = [
@@ -95,10 +96,7 @@ export default function EmployeeLayout() {
             <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 text-gray-500 dark:text-gray-400 transition-colors">
               {darkMode ? <FiSun className="w-4 h-4" /> : <FiMoon className="w-4 h-4" />}
             </button>
-            <button className="relative p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 text-gray-500 transition-colors">
-              <FiBell className="w-4 h-4" />
-              <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full" />
-            </button>
+            <NotificationBell role="Employee" email={user?.email} accentColor="#10b981" />
           </div>
         </header>
 

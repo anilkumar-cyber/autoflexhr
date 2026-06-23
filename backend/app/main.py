@@ -11,6 +11,7 @@ from app.api import candidates as candidates_router
 from app.api import jobs as jobs_router
 from app.api import activity as activity_router
 from app.api import referrals as referrals_router
+from app.api import notifications as notifications_router
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
 os.makedirs(os.path.join(UPLOAD_DIR, "resumes"), exist_ok=True)
@@ -37,6 +38,7 @@ app.include_router(candidates_router.router)
 app.include_router(jobs_router.router)
 app.include_router(activity_router.router)
 app.include_router(referrals_router.router)
+app.include_router(notifications_router.router)
 
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 

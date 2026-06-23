@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from app.database.models import Job, get_db, log_activity
+from app.database.models import Job, get_db, log_activity, notify
 from app.schemas.schemas import JobCreate, JobUpdate, JobResponse
 from app.core.security import require_admin, get_actor_name
 
@@ -34,6 +34,8 @@ async def create_job(payload: JobCreate, db: Session = Depends(get_db), actor: s
     db.commit()
     db.refresh(job)
     log_activity(db, actor, "created", "job", job.id, f"Created job posting \"{job.title}\"")
+    if job.status == "Open":
+        notify(db, "Employee", "New job posting open", f"\"{job.title}\" is now open -- refer a great candidate!", link="/employee/positions", type="job")
     return job
 
 
@@ -60,6 +62,10 @@ async def update_job(job_id: int, update: JobUpdate, db: Session = Depends(get_d
 
     if status_changed:
         log_activity(db, actor, "status_change", "job", job.id, f"\"{job.title}\": {old_status} -> {job.status}")
+        if job.status == "Open":
+            notify(db, "Employee", "New job posting open", f"\"{job.title}\" is now open -- refer a great candidate!", link="/employee/positions", type="job")
+        elif job.status == "Closed":
+            notify(db, "Employee", "Job posting closed", f"\"{job.title}\" is no longer accepting referrals.", link="/employee/positions", type="job")
     else:
         log_activity(db, actor, "updated", "job", job.id, f"Updated job posting \"{job.title}\"")
 

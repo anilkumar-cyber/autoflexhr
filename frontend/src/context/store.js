@@ -359,6 +359,20 @@ export const useAppStore = create(
         }
       },
 
+      // ── Notifications ────────────────────────────────────────────────────────
+      fetchNotifications: async (role, email) => {
+        try {
+          const params = new URLSearchParams();
+          if (role) params.set('role', role);
+          if (email) params.set('email', email);
+          const res = await fetch(`${API_BASE}/notifications/?${params.toString()}`);
+          if (!res.ok) throw new Error('Failed to load notifications');
+          return await res.json();
+        } catch (e) {
+          return [];
+        }
+      },
+
       fetchCandidate: async (id) => {
         try {
           const res = await fetch(`${API_BASE}/candidates/${id}`);
