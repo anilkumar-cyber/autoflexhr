@@ -63,6 +63,13 @@ async def create_referral(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    existing = db.query(Candidate).filter(
+        Candidate.email.ilike(candidate_email),
+        Candidate.is_deleted == False,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="A candidate with this email already exists.")
+
     resume_url = _save_resume(resume)
     skills_text = candidate_skills or ""
     if not skills_text and resume:
@@ -135,6 +142,14 @@ async def qr_refer(
     candidate_name = parsed.get("name") or "Unknown Candidate"
     candidate_email = parsed.get("email") or ""
     candidate_skills = parsed.get("skills") or ""
+
+    if candidate_email:
+        existing = db.query(Candidate).filter(
+            Candidate.email.ilike(candidate_email),
+            Candidate.is_deleted == False,
+        ).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="A candidate with this email already exists.")
 
     match = compute_match(job.requirements, job.description, candidate_skills or resume_text)
 

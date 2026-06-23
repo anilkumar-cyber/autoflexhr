@@ -51,6 +51,13 @@ async def get_candidate(candidate_id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=CandidateResponse)
 async def create_candidate(payload: CandidateCreate, db: Session = Depends(get_db)):
+    if payload.email:
+        existing = db.query(Candidate).filter(
+            Candidate.email.ilike(payload.email),
+            Candidate.is_deleted == False,
+        ).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="A candidate with this email already exists.")
     c = Candidate(**payload.model_dump(exclude_unset=True))
     db.add(c)
     db.commit()
