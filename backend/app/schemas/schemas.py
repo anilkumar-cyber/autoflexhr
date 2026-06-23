@@ -58,6 +58,8 @@ class CandidateResponse(CandidateBase):
     created_at: Optional[datetime] = None
     is_deleted: Optional[bool] = False
     deleted_at: Optional[datetime] = None
+    referred_by_name: Optional[str] = None
+    referred_by_email: Optional[str] = None
     class Config:
         from_attributes = True
 

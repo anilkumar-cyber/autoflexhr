@@ -776,6 +776,9 @@ function CandidateModal({ candidate, onClose }) {
                 <div className="text-sm text-gray-500 truncate">{candidate['Job title']} · {candidate.City}</div>
                 <div className="flex items-center gap-2 mt-1">
                   <StatusBadge status={candidate.status} small />
+                  {candidate.referredByName && (
+                    <span className="badge bg-emerald-50 text-emerald-700 text-[11px]">Referred by {candidate.referredByName}</span>
+                  )}
                   {user?.role === 'Admin' && (
                     <select
                       value={candidate.status}
@@ -1128,7 +1131,12 @@ export default function Candidates() {
                         {initials(c.Name || '')}
                       </div>
                       <div className="min-w-0">
-                        <div className="text-sm font-semibold text-gray-900 dark:text-white truncate max-w-36">{c.Name}</div>
+                        <div className="text-sm font-semibold text-gray-900 dark:text-white truncate max-w-36 flex items-center gap-1.5">
+                          {c.Name}
+                          {c.referredByName && (
+                            <span className="badge bg-emerald-50 text-emerald-700 text-[10px] flex-shrink-0" title={`Referred by ${c.referredByName}`}>Referral</span>
+                          )}
+                        </div>
                         <div className="text-xs text-gray-400 truncate max-w-36">{c.Email}</div>
                       </div>
                     </div>

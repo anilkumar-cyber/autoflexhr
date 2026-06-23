@@ -55,6 +55,7 @@ function mapDbCandidate(row) {
     interviewDate: row.interview_date || '',
     resumeUrl: resume,
     resume_url: resume,
+    referredByName: row.referred_by_name || '',
     appliedDate: row.applied_date || new Date().toISOString().split('T')[0],
   };
 }
