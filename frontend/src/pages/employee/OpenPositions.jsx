@@ -17,18 +17,18 @@ function JobModal({ job, onClose }) {
           <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg"><FiX className="w-4 h-4" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {job.description && (
-            <div>
-              <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Description</div>
-              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line">{job.description}</p>
+          {[
+            ['About Role', job.about_role],
+            ['Primary Skills', job.primary_skills],
+            ['Secondary Skills', job.secondary_skills],
+            ['Qualifications & Experience', job.qualifications_experience],
+            ['What We Offer', job.what_we_offer],
+          ].map(([label, html]) => html && (
+            <div key={label}>
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">{label}</div>
+              <div className="rich-text-content text-sm text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: html }} />
             </div>
-          )}
-          {job.requirements && (
-            <div>
-              <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Requirements</div>
-              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line">{job.requirements}</p>
-            </div>
-          )}
+          ))}
         </div>
         <div className="p-5 border-t border-surface-border dark:border-surface-border-dark flex gap-2">
           <Link to={`/employee/refer?jobId=${job.id}`} className="btn-primary flex-1 text-center py-2.5 flex items-center justify-center gap-2">
@@ -120,7 +120,10 @@ export default function OpenPositions() {
                 <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-3">
                   <FiMapPin className="w-3 h-3" /> {job.department || 'General'}
                 </div>
-                {job.description && <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-3 flex-1">{job.description}</p>}
+                {job.about_role && (
+                  <div className="rich-text-content text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-3 flex-1"
+                    dangerouslySetInnerHTML={{ __html: job.about_role }} />
+                )}
                 <div className="flex items-center gap-1.5 pt-3 border-t border-surface-border dark:border-surface-border-dark">
                   <button onClick={() => setModalJob(job)} className="text-xs font-semibold text-gray-500 hover:text-gray-900 dark:hover:text-white px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
                     View Job

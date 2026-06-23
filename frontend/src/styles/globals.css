@@ -43,3 +43,9 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+.rich-text-area:empty:before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+}
+.rich-text-content ul { list-style: disc; padding-left: 1.25rem; }

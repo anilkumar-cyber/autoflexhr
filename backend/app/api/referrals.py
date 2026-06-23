@@ -11,6 +11,7 @@ from app.database.models import Candidate, Job, Referral, RewardRule, get_db, lo
 from app.schemas.schemas import ReferralResponse, ReferralStageUpdate, ReferralRewardUpdate, MatchResult
 from app.core.security import require_admin, get_actor_name
 from app.services.matching import compute_match
+from app.ai.ai_service import parse_resume_text
 
 router = APIRouter(prefix="/referrals", tags=["Referrals"])
 
@@ -107,6 +108,85 @@ async def create_referral(
     log_activity(db, employee_name, "referred", "candidate", candidate.id, f"Referred \"{candidate_name}\" for \"{job.title}\"")
     notify(db, "Admin", "New referral submitted", f"{employee_name} referred \"{candidate_name}\" for \"{job.title}\"", link="/candidates", type="referral")
     return referral
+
+
+@router.post("/qr-refer")
+async def qr_refer(
+    employee_name: str = Form(...),
+    employee_email: str = Form(...),
+    job_id: int = Form(...),
+    resume: UploadFile = File(...),
+    note: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Public endpoint: candidate scans employee QR, uploads resume, system parses it."""
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    resume_text = _extract_pdf_text(resume)
+    if not resume_text.strip():
+        raise HTTPException(status_code=400, detail="Could not extract text from resume. Please upload a valid PDF.")
+
+    parsed = await parse_resume_text(resume_text)
+
+    resume_url = _save_resume(resume)
+
+    candidate_name = parsed.get("name") or "Unknown Candidate"
+    candidate_email = parsed.get("email") or ""
+    candidate_skills = parsed.get("skills") or ""
+
+    match = compute_match(job.requirements, job.description, candidate_skills or resume_text)
+
+    candidate = Candidate(
+        name=candidate_name,
+        email=candidate_email,
+        phone=parsed.get("phone") or "",
+        city=parsed.get("city") or "",
+        education=parsed.get("education") or "",
+        job_title=job.title,
+        job_history=parsed.get("experience") or "",
+        skills=candidate_skills,
+        ats_score=match["match_score"],
+        interview_status="New",
+        resume_url=resume_url,
+        applied_date=datetime.utcnow().strftime("%Y-%m-%d"),
+        referred_by_name=employee_name,
+        referred_by_email=employee_email,
+    )
+    db.add(candidate)
+    db.commit()
+    db.refresh(candidate)
+
+    referral = Referral(
+        employee_name=employee_name,
+        employee_email=employee_email,
+        candidate_id=candidate.id,
+        job_id=job.id,
+        candidate_name=candidate_name,
+        job_title=job.title,
+        note=note or "QR referral - auto-parsed from resume",
+        match_score=match["match_score"],
+        stage="Referred",
+    )
+    db.add(referral)
+    db.commit()
+    db.refresh(referral)
+
+    log_activity(db, employee_name, "qr_referred", "candidate", candidate.id,
+                 f"QR referral: \"{candidate_name}\" for \"{job.title}\"")
+    notify(db, "Admin", "New QR referral submitted",
+           f"{employee_name} referred \"{candidate_name}\" for \"{job.title}\" via QR scan",
+           link="/candidates", type="referral")
+
+    return {
+        "referral_id": referral.id,
+        "candidate_name": candidate_name,
+        "candidate_email": candidate_email,
+        "job_title": job.title,
+        "match_score": match["match_score"],
+        "parsed_data": parsed,
+    }
 
 
 @router.get("/mine", response_model=List[ReferralResponse])

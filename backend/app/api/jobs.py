@@ -1,5 +1,6 @@
 """Job postings API routes. Browsing is open to any logged-in role (employees
 need to see open positions); creating/editing/deleting stays Admin-only."""
+import re
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -9,6 +10,30 @@ from app.schemas.schemas import JobCreate, JobUpdate, JobResponse
 from app.core.security import require_admin, get_actor_name
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
+
+
+def _html_to_text(html: Optional[str]) -> str:
+    """Strip tags so rich-text sections can still feed the plain-text
+    skill-matching algorithm (compute_match) and search/filtering."""
+    if not html:
+        return ""
+    text = re.sub(r"<[^>]+>", " ", html)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _sync_plain_text_fields(data: dict, job: Job):
+    """Recompute description/requirements from the rich-text sections
+    whenever any of them changes, so matching/search stay accurate."""
+    about = data.get("about_role", job.about_role)
+    primary = data.get("primary_skills", job.primary_skills)
+    secondary = data.get("secondary_skills", job.secondary_skills)
+    quals = data.get("qualifications_experience", job.qualifications_experience)
+
+    if any(k in data for k in ("about_role", "primary_skills", "secondary_skills", "qualifications_experience")):
+        data["description"] = _html_to_text(about)
+        data["requirements"] = ", ".join(filter(None, [
+            _html_to_text(primary), _html_to_text(secondary), _html_to_text(quals),
+        ]))
 
 
 @router.get("/", response_model=List[JobResponse])
@@ -29,7 +54,9 @@ async def get_job(job_id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=JobResponse, dependencies=[Depends(require_admin)])
 async def create_job(payload: JobCreate, db: Session = Depends(get_db), actor: str = Depends(get_actor_name)):
-    job = Job(**payload.model_dump(exclude_unset=True))
+    data = payload.model_dump(exclude_unset=True)
+    _sync_plain_text_fields(data, Job())
+    job = Job(**data)
     db.add(job)
     db.commit()
     db.refresh(job)
@@ -48,6 +75,7 @@ async def update_job(job_id: int, update: JobUpdate, db: Session = Depends(get_d
     data = update.model_dump(exclude_unset=True)
     status_changed = "status" in data and data["status"] != job.status
     old_status = job.status
+    _sync_plain_text_fields(data, job)
 
     for k, v in data.items():
         setattr(job, k, v)

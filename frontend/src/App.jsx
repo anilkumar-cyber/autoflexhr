@@ -22,6 +22,7 @@ import MyReferrals from './pages/employee/MyReferrals';
 import RewardsWallet from './pages/employee/RewardsWallet';
 import Leaderboard from './pages/employee/Leaderboard';
 import EmployeeProfile from './pages/employee/EmployeeProfile';
+import QRReferPage from './pages/QRReferPage';
 
 function ProtectedRoute({ children }) {
   const { user } = useAuthStore();
@@ -62,6 +63,7 @@ export default function App() {
       />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/refer" element={<QRReferPage />} />
 
         <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
           <Route index element={<Dashboard />} />

@@ -105,7 +105,7 @@ export default function AuthPage() {
         </div>
 
         {/* Card */}
-        <div className="glass rounded-3xl p-8 shadow-modal">
+        <div className="bg-white/[0.07] backdrop-blur-xl border border-white/15 rounded-3xl p-8 shadow-modal">
           {/* Toggle */}
           <div className="flex bg-white/[0.06] rounded-xl p-1 mb-7">
             {['login', 'register'].map(v => (

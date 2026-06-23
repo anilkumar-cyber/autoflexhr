@@ -1,9 +1,44 @@
-"""AI Service Layer - Interview Assistant & Fraud Detection"""
+"""AI Service Layer - Interview Assistant, Fraud Detection & Resume Parsing"""
 import json
 from openai import AsyncOpenAI
 from app.core.config import settings
 
 client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+
+async def parse_resume_text(resume_text: str) -> dict:
+    """Extract structured candidate data from raw resume text using AI."""
+    prompt = f"""Extract the following fields from this resume text. Return ONLY valid JSON, no markdown.
+
+RESUME TEXT:
+{resume_text[:4000]}
+
+Return this exact JSON structure (use empty string if not found):
+{{
+  "name": "Full name of candidate",
+  "email": "candidate@email.com",
+  "phone": "+1 555 123 4567",
+  "skills": "Python, React, SQL, ...",
+  "education": "B.Tech in Computer Science from XYZ University",
+  "experience": "3 years as Software Engineer at ABC Corp",
+  "city": "City name"
+}}"""
+
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=500,
+        )
+        text = response.choices[0].message.content.strip()
+        text = text.replace("```json", "").replace("```", "").strip()
+        return json.loads(text)
+    except Exception:
+        return {
+            "name": "", "email": "", "phone": "",
+            "skills": "", "education": "", "experience": "", "city": ""
+        }
 
 async def generate_interview_analysis(candidate: dict) -> dict:
     """Generate comprehensive AI interview analysis for a candidate."""

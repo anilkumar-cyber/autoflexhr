@@ -2,16 +2,23 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiBriefcase, FiShield, FiPlus, FiX, FiEdit3, FiTrash2, FiToggleLeft, FiToggleRight } from 'react-icons/fi';
 import { useAppStore, useAuthStore } from '../context/store';
+import RichTextEditor from '../components/RichTextEditor';
 import toast from 'react-hot-toast';
 
-const EMPTY_FORM = { title: '', department: '', description: '', requirements: '', status: 'Open' };
+const EMPTY_FORM = {
+  title: '', department: '', about_role: '', primary_skills: '',
+  secondary_skills: '', qualifications_experience: '', what_we_offer: '', status: 'Open',
+};
 
 function JobModal({ job, onClose, onSave }) {
   const [form, setForm] = useState(job ? {
     title: job.title || '',
     department: job.department || '',
-    description: job.description || '',
-    requirements: job.requirements || '',
+    about_role: job.about_role || '',
+    primary_skills: job.primary_skills || '',
+    secondary_skills: job.secondary_skills || '',
+    qualifications_experience: job.qualifications_experience || '',
+    what_we_offer: job.what_we_offer || '',
     status: job.status || 'Open',
   } : EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -44,14 +51,24 @@ function JobModal({ job, onClose, onSave }) {
               className="w-full px-3 py-2.5 text-sm border border-surface-border dark:border-surface-border-dark rounded-xl bg-white dark:bg-surface-dark focus:outline-none focus:ring-2 focus:ring-brand-400" />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Description</label>
-            <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3} placeholder="Role overview..."
-              className="w-full px-3 py-2.5 text-sm border border-surface-border dark:border-surface-border-dark rounded-xl bg-white dark:bg-surface-dark focus:outline-none focus:ring-2 focus:ring-brand-400 resize-none" />
+            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">About Role</label>
+            <RichTextEditor value={form.about_role} onChange={v => set('about_role', v)} placeholder="Role overview..." />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Requirements</label>
-            <textarea value={form.requirements} onChange={e => set('requirements', e.target.value)} rows={3} placeholder="Skills, experience, qualifications..."
-              className="w-full px-3 py-2.5 text-sm border border-surface-border dark:border-surface-border-dark rounded-xl bg-white dark:bg-surface-dark focus:outline-none focus:ring-2 focus:ring-brand-400 resize-none" />
+            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Primary Skills</label>
+            <RichTextEditor value={form.primary_skills} onChange={v => set('primary_skills', v)} placeholder="Must-have skills..." />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Secondary Skills</label>
+            <RichTextEditor value={form.secondary_skills} onChange={v => set('secondary_skills', v)} placeholder="Nice-to-have skills..." />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Qualifications & Experience</label>
+            <RichTextEditor value={form.qualifications_experience} onChange={v => set('qualifications_experience', v)} placeholder="Education, years of experience..." />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">What We Offer</label>
+            <RichTextEditor value={form.what_we_offer} onChange={v => set('what_we_offer', v)} placeholder="Benefits, perks, compensation..." />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Status</label>
@@ -172,7 +189,10 @@ export default function Jobs() {
                   <span className={`badge text-[11px] ${job.status === 'Open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{job.status}</span>
                 </div>
                 {job.department && <div className="text-xs text-gray-400 mb-2">{job.department}</div>}
-                {job.description && <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-3">{job.description}</p>}
+                {job.about_role && (
+                  <div className="rich-text-content text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-3"
+                    dangerouslySetInnerHTML={{ __html: job.about_role }} />
+                )}
                 <div className="flex items-center gap-1.5 pt-3 border-t border-surface-border dark:border-surface-border-dark">
                   <button onClick={() => toggleStatus(job)} title={job.status === 'Open' ? 'Close posting' : 'Reopen posting'}
                     className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-lg transition-colors">

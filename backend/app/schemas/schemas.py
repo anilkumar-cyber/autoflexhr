@@ -69,6 +69,11 @@ class JobBase(BaseModel):
     department: Optional[str] = None
     description: Optional[str] = None
     requirements: Optional[str] = None
+    about_role: Optional[str] = None
+    primary_skills: Optional[str] = None
+    secondary_skills: Optional[str] = None
+    qualifications_experience: Optional[str] = None
+    what_we_offer: Optional[str] = None
     status: Optional[str] = "Open"
 
 class JobCreate(JobBase):

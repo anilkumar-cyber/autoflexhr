@@ -90,6 +90,14 @@ class Job(Base):
     department = Column(String(100))
     description = Column(Text)
     requirements = Column(Text)
+    # Rich-text (HTML) sections shown on job postings. description/requirements
+    # above stay populated with plain-text derivatives of these so the existing
+    # AI skill-matching logic keeps working unchanged.
+    about_role = Column(Text)
+    primary_skills = Column(Text)
+    secondary_skills = Column(Text)
+    qualifications_experience = Column(Text)
+    what_we_offer = Column(Text)
     status = Column(String(20), default="Open")  # Open | Closed
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -161,6 +169,8 @@ def create_tables():
         conn.execute(text(
             "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS referred_by_email VARCHAR(200)"
         ))
+        for col in ("about_role", "primary_skills", "secondary_skills", "qualifications_experience", "what_we_offer"):
+            conn.execute(text(f"ALTER TABLE jobs ADD COLUMN IF NOT EXISTS {col} TEXT"))
         conn.commit()
 
     with SessionLocal() as db:
