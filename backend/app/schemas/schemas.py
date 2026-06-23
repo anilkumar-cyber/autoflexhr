@@ -95,6 +95,48 @@ class ActivityLogResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# ── Referral ──────────────────────────────────────────────────────────────────
+class ReferralResponse(BaseModel):
+    id: int
+    employee_name: str
+    employee_email: str
+    candidate_id: int
+    job_id: Optional[int] = None
+    candidate_name: Optional[str] = None
+    job_title: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    note: Optional[str] = None
+    match_score: Optional[float] = None
+    stage: str
+    reward_amount: Optional[float] = None
+    reward_status: str
+    paid_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
+class ReferralStageUpdate(BaseModel):
+    stage: str
+
+class ReferralRewardUpdate(BaseModel):
+    reward_status: str
+
+class RewardRuleResponse(BaseModel):
+    id: int
+    stage: str
+    amount: float
+    currency: str
+    active: bool
+    class Config:
+        from_attributes = True
+
+class MatchResult(BaseModel):
+    match_score: float
+    matching_skills: List[str]
+    missing_skills: List[str]
+    summary: str
+
 # ── AI ────────────────────────────────────────────────────────────────────────
 class AIAnalysisRequest(BaseModel):
     candidate_id: Optional[int] = None

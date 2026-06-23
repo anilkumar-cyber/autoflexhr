@@ -63,9 +63,9 @@ export default function AuthPage() {
     setLoading(true);
     try {
       await new Promise(r => setTimeout(r, 700));
-      login(form.email, form.password);
+      const loggedUser = login(form.email, form.password);
       toast.success('Welcome back!');
-      navigate('/');
+      navigate(loggedUser.role === 'Employee' ? '/employee' : '/');
     } catch (e) { toast.error(e.message); } finally { setLoading(false); }
   };
 
@@ -76,9 +76,9 @@ export default function AuthPage() {
     setLoading(true);
     try {
       await new Promise(r => setTimeout(r, 700));
-      register(form.name, form.email, form.password, form.role);
+      const newUser = register(form.name, form.email, form.password, form.role);
       toast.success('Account created!');
-      navigate('/');
+      navigate(newUser.role === 'Employee' ? '/employee' : '/');
     } catch (e) { toast.error(e.message); } finally { setLoading(false); }
   };
 

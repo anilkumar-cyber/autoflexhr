@@ -69,6 +69,8 @@ class Candidate(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     is_deleted = Column(Boolean, default=False, nullable=False)
     deleted_at = Column(DateTime, nullable=True)
+    referred_by_name = Column(String(100), nullable=True)
+    referred_by_email = Column(String(200), nullable=True)
 
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
@@ -93,6 +95,33 @@ class Job(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     closed_at = Column(DateTime, nullable=True)
 
+class Referral(Base):
+    __tablename__ = "referrals"
+    id = Column(Integer, primary_key=True, index=True)
+    employee_name = Column(String(100), nullable=False)
+    employee_email = Column(String(200), nullable=False, index=True)
+    candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=True)
+    candidate_name = Column(String(200))
+    job_title = Column(String(200))
+    linkedin_url = Column(Text, nullable=True)
+    note = Column(Text, nullable=True)
+    match_score = Column(Float, nullable=True)
+    stage = Column(String(30), default="Referred")  # Referred|Screening|Shortlisted|Interview|Selected|Offer|Joined|Rejected
+    reward_amount = Column(Float, nullable=True)
+    reward_status = Column(String(20), default="None")  # None|Pending|Paid
+    paid_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class RewardRule(Base):
+    __tablename__ = "reward_rules"
+    id = Column(Integer, primary_key=True, index=True)
+    stage = Column(String(30), nullable=False, unique=True)
+    amount = Column(Float, nullable=False, default=0)
+    currency = Column(String(10), default="USD")
+    active = Column(Boolean, default=True)
+
 def get_db():
     db = SessionLocal()
     try:
@@ -114,7 +143,23 @@ def create_tables():
         conn.execute(text(
             "ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS actor VARCHAR(100)"
         ))
+        conn.execute(text(
+            "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS referred_by_name VARCHAR(100)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS referred_by_email VARCHAR(200)"
+        ))
         conn.commit()
+
+    with SessionLocal() as db:
+        if db.query(RewardRule).count() == 0:
+            # Placeholder tiers -- edit amounts via the reward_rules table once real policy is set.
+            db.add_all([
+                RewardRule(stage="Shortlisted", amount=25, currency="USD"),
+                RewardRule(stage="Interview", amount=50, currency="USD"),
+                RewardRule(stage="Joined", amount=500, currency="USD"),
+            ])
+            db.commit()
 
 def log_activity(db, actor: str, action: str, entity_type: str, entity_id: int, details: str = None):
     entry = ActivityLog(

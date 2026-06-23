@@ -16,6 +16,9 @@ const STATUS_MAP = {
 function normalizeResumeUrl(raw) {
   if (!raw) return '';
   let u = raw.trim();
+  // Resumes uploaded via the Employee Portal are stored as a path relative
+  // to the backend (e.g. /uploads/resumes/x.pdf), not a full URL.
+  if (u.startsWith('/uploads/')) return `${API_BASE}${u}`;
   const m =
     u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
     u.match(/open\?id=([a-zA-Z0-9_-]+)/) ||
@@ -352,6 +355,98 @@ export const useAppStore = create(
         } catch (e) {
           set({ error: e?.message || 'Failed to load activity' });
           return [];
+        }
+      },
+
+      fetchCandidate: async (id) => {
+        try {
+          const res = await fetch(`${API_BASE}/candidates/${id}`);
+          if (!res.ok) throw new Error('Failed to load candidate');
+          return await res.json();
+        } catch (e) {
+          return null;
+        }
+      },
+
+      // ── Employee Portal: Referrals ──────────────────────────────────────────
+      fetchOpenJobs: async () => {
+        try {
+          const res = await fetch(`${API_BASE}/jobs/?status=Open`);
+          if (!res.ok) throw new Error('Failed to load open positions');
+          return await res.json();
+        } catch (e) {
+          set({ error: e?.message || 'Failed to load open positions' });
+          return [];
+        }
+      },
+
+      submitReferral: async (formData) => {
+        try {
+          const res = await fetch(`${API_BASE}/referrals/`, { method: 'POST', body: formData });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to submit referral');
+          return await res.json();
+        } catch (e) {
+          set({ error: e?.message || 'Failed to submit referral' });
+          return null;
+        }
+      },
+
+      fetchMyReferrals: async (employeeEmail) => {
+        try {
+          const res = await fetch(`${API_BASE}/referrals/mine?employee_email=${encodeURIComponent(employeeEmail)}`);
+          if (!res.ok) throw new Error('Failed to load referrals');
+          return await res.json();
+        } catch (e) {
+          set({ error: e?.message || 'Failed to load referrals' });
+          return [];
+        }
+      },
+
+      fetchEmployeeStats: async (employeeEmail) => {
+        try {
+          const res = await fetch(`${API_BASE}/referrals/stats/summary?employee_email=${encodeURIComponent(employeeEmail)}`);
+          if (!res.ok) throw new Error('Failed to load stats');
+          return await res.json();
+        } catch (e) {
+          set({ error: e?.message || 'Failed to load stats' });
+          return null;
+        }
+      },
+
+      fetchLeaderboard: async (period = 'month') => {
+        try {
+          const res = await fetch(`${API_BASE}/referrals/leaderboard/top?period=${period}`);
+          if (!res.ok) throw new Error('Failed to load leaderboard');
+          return await res.json();
+        } catch (e) {
+          set({ error: e?.message || 'Failed to load leaderboard' });
+          return [];
+        }
+      },
+
+      aiMatch: async (formData) => {
+        try {
+          const res = await fetch(`${API_BASE}/referrals/ai-match`, { method: 'POST', body: formData });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to run AI match');
+          return await res.json();
+        } catch (e) {
+          set({ error: e?.message || 'Failed to run AI match' });
+          return null;
+        }
+      },
+
+      updateReferralStage: async (id, stage, role, actorName) => {
+        try {
+          const res = await fetch(`${API_BASE}/referrals/${id}/stage`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-User-Role': role || '', 'X-User-Name': actorName || '' },
+            body: JSON.stringify({ stage }),
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to update stage');
+          return await res.json();
+        } catch (e) {
+          set({ error: e?.message || 'Failed to update stage' });
+          return null;
         }
       },
     }),

@@ -13,10 +13,34 @@ import Settings from './pages/Settings';
 import Trash from './pages/Trash';
 import Jobs from './pages/Jobs';
 import Activity from './pages/Activity';
+import EmployeeLayout from './layouts/EmployeeLayout';
+import EmployeeDashboard from './pages/employee/EmployeeDashboard';
+import OpenPositions from './pages/employee/OpenPositions';
+import ScanRefer from './pages/employee/ScanRefer';
+import AIJobMatching from './pages/employee/AIJobMatching';
+import MyReferrals from './pages/employee/MyReferrals';
+import RewardsWallet from './pages/employee/RewardsWallet';
+import Leaderboard from './pages/employee/Leaderboard';
+import EmployeeProfile from './pages/employee/EmployeeProfile';
 
 function ProtectedRoute({ children }) {
   const { user } = useAuthStore();
-  return user ? children : <Navigate to="/auth" replace />;
+  if (!user) return <Navigate to="/auth" replace />;
+  if (user.role === 'Employee') return <Navigate to="/employee" replace />;
+  return children;
+}
+
+function EmployeeRoute({ children }) {
+  const { user } = useAuthStore();
+  if (!user) return <Navigate to="/auth" replace />;
+  if (user.role !== 'Employee') return <Navigate to="/" replace />;
+  return children;
+}
+
+function RootRedirect() {
+  const { user } = useAuthStore();
+  if (!user) return <Navigate to="/auth" replace />;
+  return <Navigate to={user.role === 'Employee' ? '/employee' : '/'} replace />;
 }
 
 export default function App() {
@@ -38,6 +62,7 @@ export default function App() {
       />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
+
         <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
           <Route index element={<Dashboard />} />
           <Route path="candidates" element={<Candidates />} />
@@ -49,7 +74,19 @@ export default function App() {
           <Route path="activity" element={<Activity />} />
           <Route path="settings" element={<Settings />} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+
+        <Route path="/employee" element={<EmployeeRoute><EmployeeLayout /></EmployeeRoute>}>
+          <Route index element={<EmployeeDashboard />} />
+          <Route path="positions" element={<OpenPositions />} />
+          <Route path="refer" element={<ScanRefer />} />
+          <Route path="ai-matching" element={<AIJobMatching />} />
+          <Route path="my-referrals" element={<MyReferrals />} />
+          <Route path="wallet" element={<RewardsWallet />} />
+          <Route path="leaderboard" element={<Leaderboard />} />
+          <Route path="profile" element={<EmployeeProfile />} />
+        </Route>
+
+        <Route path="*" element={<RootRedirect />} />
       </Routes>
     </BrowserRouter>
   );

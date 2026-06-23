@@ -1,4 +1,5 @@
-"""Job postings API routes (Admin only)"""
+"""Job postings API routes. Browsing is open to any logged-in role (employees
+need to see open positions); creating/editing/deleting stays Admin-only."""
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -7,7 +8,7 @@ from app.database.models import Job, get_db, log_activity
 from app.schemas.schemas import JobCreate, JobUpdate, JobResponse
 from app.core.security import require_admin, get_actor_name
 
-router = APIRouter(prefix="/jobs", tags=["Jobs"], dependencies=[Depends(require_admin)])
+router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
 
 @router.get("/", response_model=List[JobResponse])
@@ -26,7 +27,7 @@ async def get_job(job_id: int, db: Session = Depends(get_db)):
     return job
 
 
-@router.post("/", response_model=JobResponse)
+@router.post("/", response_model=JobResponse, dependencies=[Depends(require_admin)])
 async def create_job(payload: JobCreate, db: Session = Depends(get_db), actor: str = Depends(get_actor_name)):
     job = Job(**payload.model_dump(exclude_unset=True))
     db.add(job)
@@ -36,7 +37,7 @@ async def create_job(payload: JobCreate, db: Session = Depends(get_db), actor: s
     return job
 
 
-@router.put("/{job_id}", response_model=JobResponse)
+@router.put("/{job_id}", response_model=JobResponse, dependencies=[Depends(require_admin)])
 async def update_job(job_id: int, update: JobUpdate, db: Session = Depends(get_db), actor: str = Depends(get_actor_name)):
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
@@ -65,7 +66,7 @@ async def update_job(job_id: int, update: JobUpdate, db: Session = Depends(get_d
     return job
 
 
-@router.delete("/{job_id}")
+@router.delete("/{job_id}", dependencies=[Depends(require_admin)])
 async def delete_job(job_id: int, db: Session = Depends(get_db), actor: str = Depends(get_actor_name)):
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
