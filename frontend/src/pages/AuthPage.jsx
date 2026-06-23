@@ -62,8 +62,7 @@ export default function AuthPage() {
     if (!form.email || !form.password) { toast.error('Please fill all fields'); return; }
     setLoading(true);
     try {
-      await new Promise(r => setTimeout(r, 700));
-      const loggedUser = login(form.email, form.password);
+      const loggedUser = await login(form.email, form.password);
       toast.success('Welcome back!');
       navigate(loggedUser.role === 'Employee' ? '/employee' : '/');
     } catch (e) { toast.error(e.message); } finally { setLoading(false); }
@@ -75,8 +74,7 @@ export default function AuthPage() {
     if (form.password.length < 6) { toast.error('Password must be 6+ characters'); return; }
     setLoading(true);
     try {
-      await new Promise(r => setTimeout(r, 700));
-      const newUser = register(form.name, form.email, form.password, form.role);
+      const newUser = await register(form.name, form.email, form.password, form.role);
       toast.success('Account created!');
       navigate(newUser.role === 'Employee' ? '/employee' : '/');
     } catch (e) { toast.error(e.message); } finally { setLoading(false); }

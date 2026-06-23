@@ -14,6 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import sessionmaker, declarative_base
 from datetime import datetime
 from app.core.config import settings
+from app.core.security import get_password_hash
 
 DATABASE_URL = settings.DATABASE_URL
 
@@ -174,6 +175,16 @@ def create_tables():
         conn.commit()
 
     with SessionLocal() as db:
+        if db.query(User).count() == 0:
+            # Same creds the old local-only demo login used, now backed by real
+            # accounts so login keeps working once routed through /auth/login.
+            db.add_all([
+                User(name="HR Admin", email="hr@autoflex.com", hashed_password=get_password_hash("admin123"), role="Admin"),
+                User(name="Recruiter", email="recruiter@autoflex.com", hashed_password=get_password_hash("recruiter123"), role="Recruiter"),
+                User(name="Employee", email="employee@autoflex.com", hashed_password=get_password_hash("employee123"), role="Employee"),
+            ])
+            db.commit()
+
         if db.query(RewardRule).count() == 0:
             # Placeholder tiers -- edit amounts via the reward_rules table once real policy is set.
             db.add_all([

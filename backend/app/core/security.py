@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from app.core.config import settings
 
@@ -28,20 +28,13 @@ def decode_token(token: str) -> dict:
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    payload = decode_token(token)
-    return payload
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
+    return decode_token(token)
 
-async def require_admin(x_user_role: Optional[str] = Header(default=None)):
-    """The app's frontend auth is local-only (no JWT issued for these calls yet),
-    so this trusts the X-User-Role header the client sends. It blocks accidental
-    non-admin access but is not a substitute for real auth once login is wired
-    to the backend's JWT flow."""
-    if x_user_role != "Admin":
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") != "Admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return x_user_role
+    return user
 
-async def get_actor_name(x_user_name: Optional[str] = Header(default=None)) -> str:
-    """Best-effort identity for activity logging, same caveat as require_admin --
-    trusts a client-sent header since there's no real session yet."""
-    return x_user_name or "Unknown"
+async def get_actor_name(user: dict = Depends(get_current_user)) -> str:
+    return user.get("name") or "Unknown"

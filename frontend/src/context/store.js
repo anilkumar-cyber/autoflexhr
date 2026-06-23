@@ -63,75 +63,44 @@ function mapDbCandidate(row) {
 // ── Auth Store ────────────────────────────────────────────────────────────────
 export const useAuthStore = create(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       token: null,
-      users: [
-        {
-          id: 1,
-          name: 'HR Admin',
-          email: 'hr@autoflex.com',
-          password: 'admin123',
-          role: 'Admin',
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: 2,
-          name: 'Recruiter',
-          email: 'recruiter@autoflex.com',
-          password: 'recruiter123',
-          role: 'Recruiter',
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: 3,
-          name: 'Employee',
-          email: 'employee@autoflex.com',
-          password: 'employee123',
-          role: 'Employee',
-          createdAt: new Date().toISOString(),
-        },
-      ],
-      login: (email, password) => {
-        const users = get().users;
-        const found = users.find(
-          u =>
-            u.email.toLowerCase() === email.toLowerCase() &&
-            u.password === password
-        );
-        if (!found) throw new Error('Invalid credentials');
-        set({ user: found, token: `local-${found.id}` });
-        return found;
-      },
-      register: (name, email, password, role) => {
-        const users = get().users;
-        if (
-          users.find(u => u.email.toLowerCase() === email.toLowerCase())
-        )
-          throw new Error('Email already registered');
-        const newUser = {
-          id: Date.now(),
-          name,
-          email,
-          password,
-          role,
-          createdAt: new Date().toISOString(),
-        };
-        set({
-          users: [...users, newUser],
-          user: newUser,
-          token: `local-${newUser.id}`,
+      login: async (email, password) => {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
         });
-        return newUser;
+        if (!res.ok) throw new Error((await res.json()).detail || 'Invalid credentials');
+        const data = await res.json();
+        set({ user: data.user, token: data.access_token });
+        return data.user;
+      },
+      register: async (name, email, password, role) => {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password, role }),
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || 'Registration failed');
+        const data = await res.json();
+        set({ user: data.user, token: data.access_token });
+        return data.user;
       },
       logout: () => set({ user: null, token: null }),
     }),
     {
       name: 'autoflex-auth',
-      partialize: s => ({ user: s.user, token: s.token, users: s.users }),
+      partialize: s => ({ user: s.user, token: s.token }),
     }
   )
 );
+
+function authHeader() {
+  const token = useAuthStore.getState().token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 // ── App Store ─────────────────────────────────────────────────────────────────
 export const useAppStore = create(
@@ -184,7 +153,7 @@ export const useAppStore = create(
         try {
           await fetch(`${API_BASE}/candidates/${id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'X-User-Name': actorName || '' },
+            headers: { 'Content-Type': 'application/json', ...authHeader() },
             body: JSON.stringify({ interview_status: status }),
           });
         } catch (e) {
@@ -214,7 +183,7 @@ export const useAppStore = create(
         try {
           const res = await fetch(`${API_BASE}/candidates/${id}`, {
             method: 'DELETE',
-            headers: { 'X-User-Role': role || '', 'X-User-Name': actorName || '' },
+            headers: { ...authHeader() },
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to delete candidate');
           set(s => ({ candidates: s.candidates.filter(c => c.id !== id) }));
@@ -229,7 +198,7 @@ export const useAppStore = create(
         try {
           const res = await fetch(`${API_BASE}/candidates/${id}/duplicate`, {
             method: 'POST',
-            headers: { 'X-User-Name': actorName || '' },
+            headers: { ...authHeader() },
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to duplicate candidate');
           const row = await res.json();
@@ -245,7 +214,7 @@ export const useAppStore = create(
       fetchTrash: async (role) => {
         try {
           const res = await fetch(`${API_BASE}/candidates/trash`, {
-            headers: { 'X-User-Role': role || '' },
+            headers: { ...authHeader() },
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to load trash');
           const rows = await res.json();
@@ -260,7 +229,7 @@ export const useAppStore = create(
         try {
           const res = await fetch(`${API_BASE}/candidates/${id}/restore`, {
             method: 'POST',
-            headers: { 'X-User-Role': role || '', 'X-User-Name': actorName || '' },
+            headers: { ...authHeader() },
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to restore candidate');
           const row = await res.json();
@@ -277,7 +246,7 @@ export const useAppStore = create(
         try {
           const res = await fetch(`${API_BASE}/candidates/${id}/permanent`, {
             method: 'DELETE',
-            headers: { 'X-User-Role': role || '', 'X-User-Name': actorName || '' },
+            headers: { ...authHeader() },
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to permanently delete candidate');
           return true;
@@ -291,7 +260,7 @@ export const useAppStore = create(
       fetchJobs: async (role) => {
         try {
           const res = await fetch(`${API_BASE}/jobs/`, {
-            headers: { 'X-User-Role': role || '' },
+            headers: { ...authHeader() },
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to load jobs');
           return await res.json();
@@ -305,7 +274,7 @@ export const useAppStore = create(
         try {
           const res = await fetch(`${API_BASE}/jobs/`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-User-Role': role || '', 'X-User-Name': actorName || '' },
+            headers: { 'Content-Type': 'application/json', ...authHeader() },
             body: JSON.stringify(payload),
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to create job');
@@ -320,7 +289,7 @@ export const useAppStore = create(
         try {
           const res = await fetch(`${API_BASE}/jobs/${id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'X-User-Role': role || '', 'X-User-Name': actorName || '' },
+            headers: { 'Content-Type': 'application/json', ...authHeader() },
             body: JSON.stringify(payload),
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to update job');
@@ -335,7 +304,7 @@ export const useAppStore = create(
         try {
           const res = await fetch(`${API_BASE}/jobs/${id}`, {
             method: 'DELETE',
-            headers: { 'X-User-Role': role || '', 'X-User-Name': actorName || '' },
+            headers: { ...authHeader() },
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to delete job');
           return true;
@@ -349,7 +318,7 @@ export const useAppStore = create(
       fetchActivity: async (role) => {
         try {
           const res = await fetch(`${API_BASE}/activity/`, {
-            headers: { 'X-User-Role': role || '' },
+            headers: { ...authHeader() },
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to load activity');
           return await res.json();
@@ -454,7 +423,7 @@ export const useAppStore = create(
         try {
           const res = await fetch(`${API_BASE}/referrals/${id}/stage`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'X-User-Role': role || '', 'X-User-Name': actorName || '' },
+            headers: { 'Content-Type': 'application/json', ...authHeader() },
             body: JSON.stringify({ stage }),
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to update stage');
