@@ -40,3 +40,8 @@ async def require_admin(x_user_role: Optional[str] = Header(default=None)):
     if x_user_role != "Admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return x_user_role
+
+async def get_actor_name(x_user_name: Optional[str] = Header(default=None)) -> str:
+    """Best-effort identity for activity logging, same caveat as require_admin --
+    trusts a client-sent header since there's no real session yet."""
+    return x_user_name or "Unknown"

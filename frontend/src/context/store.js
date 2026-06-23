@@ -171,7 +171,7 @@ export const useAppStore = create(
         }
       },
 
-      updateCandidateStatus: async (id, status) => {
+      updateCandidateStatus: async (id, status, actorName) => {
         set(s => ({
           candidates: s.candidates.map(c =>
             c.id === id ? { ...c, status, 'Interview Status': status } : c
@@ -180,7 +180,7 @@ export const useAppStore = create(
         try {
           await fetch(`${API_BASE}/candidates/${id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-User-Name': actorName || '' },
             body: JSON.stringify({ interview_status: status }),
           });
         } catch (e) {
@@ -206,11 +206,11 @@ export const useAppStore = create(
       },
 
       // Admin-only: moves a candidate to the trash (soft delete, restorable).
-      deleteCandidate: async (id, role) => {
+      deleteCandidate: async (id, role, actorName) => {
         try {
           const res = await fetch(`${API_BASE}/candidates/${id}`, {
             method: 'DELETE',
-            headers: { 'X-User-Role': role || '' },
+            headers: { 'X-User-Role': role || '', 'X-User-Name': actorName || '' },
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to delete candidate');
           set(s => ({ candidates: s.candidates.filter(c => c.id !== id) }));
@@ -221,9 +221,12 @@ export const useAppStore = create(
         }
       },
 
-      duplicateCandidate: async (id) => {
+      duplicateCandidate: async (id, actorName) => {
         try {
-          const res = await fetch(`${API_BASE}/candidates/${id}/duplicate`, { method: 'POST' });
+          const res = await fetch(`${API_BASE}/candidates/${id}/duplicate`, {
+            method: 'POST',
+            headers: { 'X-User-Name': actorName || '' },
+          });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to duplicate candidate');
           const row = await res.json();
           const mapped = mapDbCandidate(row);
@@ -249,11 +252,11 @@ export const useAppStore = create(
         }
       },
 
-      restoreCandidate: async (id, role) => {
+      restoreCandidate: async (id, role, actorName) => {
         try {
           const res = await fetch(`${API_BASE}/candidates/${id}/restore`, {
             method: 'POST',
-            headers: { 'X-User-Role': role || '' },
+            headers: { 'X-User-Role': role || '', 'X-User-Name': actorName || '' },
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to restore candidate');
           const row = await res.json();
@@ -266,17 +269,89 @@ export const useAppStore = create(
         }
       },
 
-      permanentlyDeleteCandidate: async (id, role) => {
+      permanentlyDeleteCandidate: async (id, role, actorName) => {
         try {
           const res = await fetch(`${API_BASE}/candidates/${id}/permanent`, {
             method: 'DELETE',
-            headers: { 'X-User-Role': role || '' },
+            headers: { 'X-User-Role': role || '', 'X-User-Name': actorName || '' },
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Failed to permanently delete candidate');
           return true;
         } catch (e) {
           set({ error: e?.message || 'Failed to permanently delete candidate' });
           return false;
+        }
+      },
+
+      // ── Jobs (Admin only) ──────────────────────────────────────────────────
+      fetchJobs: async (role) => {
+        try {
+          const res = await fetch(`${API_BASE}/jobs/`, {
+            headers: { 'X-User-Role': role || '' },
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to load jobs');
+          return await res.json();
+        } catch (e) {
+          set({ error: e?.message || 'Failed to load jobs' });
+          return [];
+        }
+      },
+
+      createJob: async (payload, role, actorName) => {
+        try {
+          const res = await fetch(`${API_BASE}/jobs/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-User-Role': role || '', 'X-User-Name': actorName || '' },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to create job');
+          return await res.json();
+        } catch (e) {
+          set({ error: e?.message || 'Failed to create job' });
+          return null;
+        }
+      },
+
+      updateJob: async (id, payload, role, actorName) => {
+        try {
+          const res = await fetch(`${API_BASE}/jobs/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-User-Role': role || '', 'X-User-Name': actorName || '' },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to update job');
+          return await res.json();
+        } catch (e) {
+          set({ error: e?.message || 'Failed to update job' });
+          return null;
+        }
+      },
+
+      deleteJob: async (id, role, actorName) => {
+        try {
+          const res = await fetch(`${API_BASE}/jobs/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-User-Role': role || '', 'X-User-Name': actorName || '' },
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to delete job');
+          return true;
+        } catch (e) {
+          set({ error: e?.message || 'Failed to delete job' });
+          return false;
+        }
+      },
+
+      // ── Activity (Admin only) ──────────────────────────────────────────────
+      fetchActivity: async (role) => {
+        try {
+          const res = await fetch(`${API_BASE}/activity/`, {
+            headers: { 'X-User-Role': role || '' },
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to load activity');
+          return await res.json();
+        } catch (e) {
+          set({ error: e?.message || 'Failed to load activity' });
+          return [];
         }
       },
     }),

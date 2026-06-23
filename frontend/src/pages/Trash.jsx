@@ -36,7 +36,7 @@ export default function Trash() {
   }
 
   const handleRestore = async c => {
-    const restored = await restoreCandidate(c.id, user?.role);
+    const restored = await restoreCandidate(c.id, user?.role, user?.name);
     if (restored) {
       setTrashed(t => t.filter(x => x.id !== c.id));
       toast.success(`Restored "${c.Name}"`);
@@ -47,7 +47,7 @@ export default function Trash() {
 
   const handlePermanentDelete = async c => {
     if (!window.confirm(`Permanently delete "${c.Name}"? This cannot be undone.`)) return;
-    const ok = await permanentlyDeleteCandidate(c.id, user?.role);
+    const ok = await permanentlyDeleteCandidate(c.id, user?.role, user?.name);
     if (ok) {
       setTrashed(t => t.filter(x => x.id !== c.id));
       toast.success('Candidate permanently deleted');

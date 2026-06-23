@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiHome, FiUsers, FiBarChart2, FiTrello, FiCpu, FiSettings, FiZap, FiLogOut, FiSearch, FiBell, FiSun, FiMoon, FiRefreshCw, FiMenu, FiX, FiChevronRight, FiTrash2 } from 'react-icons/fi';
+import { FiHome, FiUsers, FiBarChart2, FiTrello, FiCpu, FiSettings, FiZap, FiLogOut, FiSearch, FiBell, FiSun, FiMoon, FiRefreshCw, FiMenu, FiX, FiChevronRight, FiTrash2, FiBriefcase, FiActivity } from 'react-icons/fi';
 import { useAuthStore, useAppStore } from '../context/store';
 import { initials, avatarColor } from '../utils/helpers';
 import toast from 'react-hot-toast';
@@ -12,6 +12,8 @@ const NAV = [
   { path: '/analytics', label: 'Analytics', icon: FiBarChart2 },
   { path: '/pipeline', label: 'Pipeline', icon: FiTrello },
   { path: '/ai-assistant', label: 'AI Assistant', icon: FiCpu },
+  { path: '/jobs', label: 'Job Postings', icon: FiBriefcase, adminOnly: true },
+  { path: '/activity', label: 'Activity', icon: FiActivity, adminOnly: true },
   { path: '/trash', label: 'Trash', icon: FiTrash2, adminOnly: true },
   { path: '/settings', label: 'Settings', icon: FiSettings, adminOnly: true },
 ];

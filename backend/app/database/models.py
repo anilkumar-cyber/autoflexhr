@@ -74,11 +74,24 @@ class ActivityLog(Base):
     __tablename__ = "activity_logs"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
+    actor = Column(String(100), nullable=True)
     action = Column(String(200))
     entity_type = Column(String(50))
     entity_id = Column(Integer)
     details = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class Job(Base):
+    __tablename__ = "jobs"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    department = Column(String(100))
+    description = Column(Text)
+    requirements = Column(Text)
+    status = Column(String(20), default="Open")  # Open | Closed
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    closed_at = Column(DateTime, nullable=True)
 
 def get_db():
     db = SessionLocal()
@@ -98,4 +111,18 @@ def create_tables():
         conn.execute(text(
             "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP"
         ))
+        conn.execute(text(
+            "ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS actor VARCHAR(100)"
+        ))
         conn.commit()
+
+def log_activity(db, actor: str, action: str, entity_type: str, entity_id: int, details: str = None):
+    entry = ActivityLog(
+        actor=actor,
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        details=details,
+    )
+    db.add(entry)
+    db.commit()

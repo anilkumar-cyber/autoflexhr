@@ -6,6 +6,8 @@ from typing import Optional
 
 from app.database.models import create_tables
 from app.api import candidates as candidates_router
+from app.api import jobs as jobs_router
+from app.api import activity as activity_router
 
 
 @asynccontextmanager
@@ -26,6 +28,8 @@ app.add_middleware(
 )
 
 app.include_router(candidates_router.router)
+app.include_router(jobs_router.router)
+app.include_router(activity_router.router)
 
 # ─────────────────────────────────────────────
 # PYDANTIC MODELS

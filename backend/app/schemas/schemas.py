@@ -61,6 +61,40 @@ class CandidateResponse(CandidateBase):
     class Config:
         from_attributes = True
 
+# ── Job ───────────────────────────────────────────────────────────────────────
+class JobBase(BaseModel):
+    title: Optional[str] = None
+    department: Optional[str] = None
+    description: Optional[str] = None
+    requirements: Optional[str] = None
+    status: Optional[str] = "Open"
+
+class JobCreate(JobBase):
+    title: str
+
+class JobUpdate(JobBase):
+    pass
+
+class JobResponse(JobBase):
+    id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    closed_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
+# ── Activity ──────────────────────────────────────────────────────────────────
+class ActivityLogResponse(BaseModel):
+    id: int
+    actor: Optional[str] = None
+    action: str
+    entity_type: str
+    entity_id: int
+    details: Optional[str] = None
+    created_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
 # ── AI ────────────────────────────────────────────────────────────────────────
 class AIAnalysisRequest(BaseModel):
     candidate_id: Optional[int] = None

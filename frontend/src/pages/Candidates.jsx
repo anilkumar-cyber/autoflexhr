@@ -779,7 +779,7 @@ function CandidateModal({ candidate, onClose }) {
                   {user?.role === 'Admin' && (
                     <select
                       value={candidate.status}
-                      onChange={e => updateCandidateStatus(candidate.id, e.target.value)}
+                      onChange={e => updateCandidateStatus(candidate.id, e.target.value, user?.name)}
                       className="text-xs border border-surface-border dark:border-surface-border-dark rounded-lg px-2 py-1 bg-white dark:bg-surface-card-dark focus:outline-none focus:ring-1 focus:ring-brand-400"
                     >
                       {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -1010,13 +1010,13 @@ export default function Candidates() {
   const toggleSort = key => setSort(s => s.key === key ? { key, dir: -s.dir } : { key, dir: -1 });
 
   const handleDuplicate = async c => {
-    const copy = await duplicateCandidate(c.id);
+    const copy = await duplicateCandidate(c.id, user?.name);
     if (copy) toast.success(`Duplicated "${c.Name}"`);
   };
 
   const handleDelete = async c => {
     if (!window.confirm(`Move "${c.Name}" to trash? You can restore it later from Trash.`)) return;
-    const ok = await deleteCandidate(c.id, user?.role);
+    const ok = await deleteCandidate(c.id, user?.role, user?.name);
     if (ok) toast.success('Candidate moved to trash');
     else toast.error('Failed to delete candidate');
   };
@@ -1081,7 +1081,7 @@ export default function Candidates() {
             <button
               onClick={() => {
                 if (!bulkStatus) return;
-                bulkSel.forEach(id => updateCandidateStatus(id, bulkStatus));
+                bulkSel.forEach(id => updateCandidateStatus(id, bulkStatus, user?.name));
                 setBulkSel([]); setBulkStatus('');
                 toast.success('Status updated!');
               }}
@@ -1144,7 +1144,7 @@ export default function Candidates() {
                   </td>
                   <td className="px-4 py-3">
                     {user?.role === 'Admin' ? (
-                      <select value={c.status} onChange={e => updateCandidateStatus(c.id, e.target.value)}
+                      <select value={c.status} onChange={e => updateCandidateStatus(c.id, e.target.value, user?.name)}
                         className="text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all"
                         style={{ borderColor: STATUS_COLORS[c.status]?.border, background: STATUS_COLORS[c.status]?.bg, color: STATUS_COLORS[c.status]?.text }}>
                         {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
