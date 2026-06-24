@@ -67,7 +67,7 @@ export const useAuthStore = create(
     (set) => ({
       user: null,
       token: null,
-      login: async (email, password) => {
+      login: async (email, password, remember = true) => {
         const res = await fetch(`${API_BASE}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -76,6 +76,10 @@ export const useAuthStore = create(
         if (!res.ok) throw new Error((await res.json()).detail || 'Invalid credentials');
         const data = await res.json();
         set({ user: data.user, token: data.access_token });
+        if (!remember) {
+          // "Remember me" unchecked -- don't keep the session past this browser tab.
+          window.addEventListener('beforeunload', () => localStorage.removeItem('autoflex-auth'));
+        }
         return data.user;
       },
       register: async (name, email, password, role) => {
