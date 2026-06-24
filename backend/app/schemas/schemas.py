@@ -13,7 +13,7 @@ class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
     password: str
-    role: str = "Recruiter"
+    role: str = "Employee"
 
 class TokenResponse(BaseModel):
     access_token: str

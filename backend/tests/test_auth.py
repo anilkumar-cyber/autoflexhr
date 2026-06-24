@@ -16,12 +16,11 @@ def test_register_allows_employee(client):
     assert res.json()["user"]["role"] == "Employee"
 
 
-def test_register_allows_recruiter(client):
+def test_register_blocks_recruiter_role(client):
     res = client.post("/auth/register", json={
-        "name": "New Recruiter", "email": "newrecruiter@test.com", "password": "password123", "role": "Recruiter",
+        "name": "Sneaky Recruiter", "email": "sneakyrecruiter@test.com", "password": "password123", "role": "Recruiter",
     })
-    assert res.status_code == 200
-    assert res.json()["user"]["role"] == "Recruiter"
+    assert res.status_code == 403
 
 
 def test_register_duplicate_email_rejected(client):

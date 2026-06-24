@@ -1,17 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiMail, FiLock, FiUser, FiEye, FiEyeOff, FiZap, FiShield, FiUsers, FiBriefcase } from 'react-icons/fi';
+import { FiMail, FiLock, FiUser, FiEye, FiEyeOff, FiZap, FiShield } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../context/store';
 
-// Self-registration is intentionally limited to Employee/Recruiter -- Admin
-// accounts are created by an existing Admin via Settings > Recruiters, never
-// through this public signup form.
-const ROLE_OPTIONS = [
-  { value: 'Employee', label: 'Employee', icon: FiBriefcase },
-  { value: 'Recruiter', label: 'Recruiter', icon: FiUsers },
-];
+// Self-registration only ever creates Employee accounts -- Recruiter and
+// Admin accounts are created by an existing Admin via Settings > Recruiters,
+// never through this public signup form.
 
 const Input = ({ icon: Icon, label, ...props }) => (
   <div>
@@ -42,7 +38,7 @@ const PasswordInput = ({ label, value, onChange, placeholder, onKeyDown }) => {
 
 export default function AuthPage() {
   const [view, setView] = useState('login');
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', role: 'Recruiter' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', role: 'Employee' });
   const [loading, setLoading] = useState(false);
   const { login, register } = useAuthStore();
   const navigate = useNavigate();
@@ -119,19 +115,6 @@ export default function AuthPage() {
               <motion.div key="register" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-4">
                 <Input icon={FiUser} label="Full Name" type="text" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Your name" />
                 <Input icon={FiMail} label="Email" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="you@company.com" />
-
-                <div>
-                  <label className="block text-xs font-semibold text-white/60 mb-1.5 uppercase tracking-wider">Role</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {ROLE_OPTIONS.map(r => (
-                      <button key={r.value} type="button" onClick={() => set('role', r.value)}
-                        className={`flex flex-col items-center gap-1.5 py-2.5 rounded-xl border transition-all ${form.role === r.value ? 'bg-brand-600/20 border-brand-400/50 text-white' : 'bg-white/[0.04] border-white/10 text-white/50 hover:bg-white/[0.08]'}`}>
-                        <r.icon className="w-4 h-4" />
-                        <span className="text-xs font-medium">{r.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
                 <PasswordInput label="Password" value={form.password} onChange={e => set('password', e.target.value)} placeholder="Min 6 characters" />
                 <PasswordInput label="Confirm Password" value={form.confirm} onChange={e => set('confirm', e.target.value)} placeholder="Repeat password" onKeyDown={e => e.key === 'Enter' && handleRegister()} />

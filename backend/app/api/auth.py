@@ -21,10 +21,10 @@ async def login(req: LoginRequest, request: Request, db: Session = Depends(get_d
 async def register(req: RegisterRequest, request: Request, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == req.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
-    # Self-registration can only create Employee/Recruiter accounts -- Admin
-    # accounts are created by an existing Admin via /users (Settings > Recruiters).
-    if req.role not in ("Employee", "Recruiter"):
-        raise HTTPException(status_code=403, detail="Self-registration is limited to Employee or Recruiter accounts")
+    # Self-registration can only create Employee accounts -- Recruiter and
+    # Admin accounts are created by an existing Admin via /users (Settings > Recruiters).
+    if req.role != "Employee":
+        raise HTTPException(status_code=403, detail="Self-registration is limited to Employee accounts")
     user = User(
         name=req.name,
         email=req.email,
