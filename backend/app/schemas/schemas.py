@@ -20,6 +20,22 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user: dict
 
+class UserCreate(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    role: str = "Recruiter"
+
+class UserResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    role: str
+    is_active: bool
+    created_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
 # ── Candidate ─────────────────────────────────────────────────────────────────
 class CandidateBase(BaseModel):
     name: Optional[str] = None
@@ -37,6 +53,7 @@ class CandidateBase(BaseModel):
     resume_url: Optional[str] = None
     applied_date: Optional[str] = None
     notes: Optional[str] = ""
+    assigned_recruiter_id: Optional[int] = None
 
     @field_validator("job_history", mode="before")
     @classmethod
@@ -52,6 +69,9 @@ class CandidateCreate(CandidateBase):
 
 class CandidateUpdate(CandidateBase):
     pass
+
+class CandidateAssign(BaseModel):
+    assigned_recruiter_id: Optional[int] = None
 
 class CandidateResponse(CandidateBase):
     id: int

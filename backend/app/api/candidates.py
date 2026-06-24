@@ -1,13 +1,45 @@
 """Candidates API routes (PostgreSQL only)"""
+import os
+import uuid
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header, Form, File, UploadFile
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
-from app.database.models import Candidate, get_db, log_activity
-from app.schemas.schemas import CandidateCreate, CandidateUpdate, CandidateResponse
-from app.core.security import require_admin, get_actor_name
+from app.database.models import Candidate, Job, User, get_db, log_activity, notify
+from app.schemas.schemas import CandidateCreate, CandidateUpdate, CandidateResponse, CandidateAssign
+from app.core.security import require_admin, get_actor_name, decode_token
+from app.services.matching import compute_match
+from app.ai.ai_service import parse_resume_text
 
 router = APIRouter(prefix="/candidates", tags=["Candidates"])
+
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "resumes")
+
+
+def _save_resume(resume: UploadFile) -> Optional[str]:
+    if not resume or not resume.filename:
+        return None
+    ext = os.path.splitext(resume.filename)[1] or ".pdf"
+    fname = f"{uuid.uuid4().hex}{ext}"
+    path = os.path.join(UPLOAD_DIR, fname)
+    with open(path, "wb") as f:
+        f.write(resume.file.read())
+    return f"/uploads/resumes/{fname}"
+
+
+def _extract_pdf_text(resume: UploadFile) -> str:
+    if not resume or not resume.filename:
+        return ""
+    try:
+        from pypdf import PdfReader
+        resume.file.seek(0)
+        reader = PdfReader(resume.file)
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        resume.file.seek(0)
+        return text
+    except Exception:
+        return ""
 
 
 @router.get("/trash", response_model=List[CandidateResponse])
@@ -26,8 +58,17 @@ async def get_candidates(
     status: Optional[str] = None,
     job_title: Optional[str] = None,
     db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None),
 ):
     q = db.query(Candidate).filter(Candidate.is_deleted == False)
+    # Recruiters only see candidates assigned to them; Admins see everyone.
+    if authorization and authorization.lower().startswith("bearer "):
+        try:
+            payload = decode_token(authorization.split(" ", 1)[1])
+            if payload.get("role") == "Recruiter":
+                q = q.filter(Candidate.assigned_recruiter_id == int(payload["sub"]))
+        except HTTPException:
+            pass
     if search:
         q = q.filter(
             Candidate.name.ilike(f"%{search}%")
@@ -60,7 +101,11 @@ async def create_candidate(payload: CandidateCreate, db: Session = Depends(get_d
             raise HTTPException(status_code=409, detail="A candidate with this email already exists.")
     c = Candidate(**payload.model_dump(exclude_unset=True))
     db.add(c)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="A candidate with this email already exists.")
     db.refresh(c)
     return c
 
@@ -76,6 +121,81 @@ async def bulk_create_candidates(payload: List[CandidateCreate], db: Session = D
     for c in created:
         db.refresh(c)
     return created
+
+
+@router.post("/bulk-resumes")
+async def bulk_import_resumes(
+    resumes: List[UploadFile] = File(...),
+    job_id: Optional[int] = Form(None),
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+    actor: str = Depends(get_actor_name),
+):
+    """Admin-only: parse multiple resume PDFs with AI and create a candidate
+    for each. If job_id is given, ATS score is computed against that job's
+    requirements; otherwise it falls back to the AI's own resume-quality score."""
+    job = db.query(Job).filter(Job.id == job_id).first() if job_id else None
+
+    created = []
+    skipped = []
+    for resume in resumes:
+        text = _extract_pdf_text(resume)
+        if not text.strip():
+            skipped.append({"filename": resume.filename, "reason": "Could not extract text from PDF"})
+            continue
+
+        parsed = await parse_resume_text(text)
+        email = parsed.get("email") or ""
+
+        if email:
+            existing = db.query(Candidate).filter(
+                Candidate.email.ilike(email),
+                Candidate.is_deleted == False,
+            ).first()
+            if existing:
+                skipped.append({"filename": resume.filename, "reason": f"Candidate with email {email} already exists"})
+                continue
+
+        if job:
+            match = compute_match(job.requirements, job.description, parsed.get("skills") or text)
+            ats_score = match["match_score"]
+        else:
+            ats_score = parsed.get("ats_score") or 0
+
+        c = Candidate(
+            name=parsed.get("name") or resume.filename,
+            email=email,
+            phone=parsed.get("phone") or "",
+            city=parsed.get("city") or "",
+            education=parsed.get("education") or "",
+            job_title=job.title if job else "",
+            job_history=parsed.get("experience") or None,
+            skills=parsed.get("skills") or "",
+            ats_score=ats_score,
+            interview_status="New",
+            resume_url=_save_resume(resume),
+            applied_date=datetime.utcnow().strftime("%Y-%m-%d"),
+        )
+        db.add(c)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            skipped.append({"filename": resume.filename, "reason": f"Candidate with email {email} already exists"})
+            continue
+        db.refresh(c)
+        created.append(c)
+
+    if created:
+        log_activity(
+            db, actor, "bulk_imported", "candidate", created[0].id,
+            f"Bulk imported {len(created)} resume(s)" + (f" for \"{job.title}\"" if job else ""),
+        )
+
+    return {
+        "created": [CandidateResponse.model_validate(c) for c in created],
+        "skipped": skipped,
+    }
 
 
 @router.put("/{candidate_id}", response_model=CandidateResponse)
@@ -95,6 +215,30 @@ async def update_candidate(candidate_id: int, update: CandidateUpdate, db: Sessi
 
     if status_changed:
         log_activity(db, actor, "status_change", "candidate", c.id, f"\"{c.name}\": {old_status} -> {c.interview_status}")
+
+    return c
+
+
+@router.put("/{candidate_id}/assign", response_model=CandidateResponse)
+async def assign_candidate(candidate_id: int, payload: CandidateAssign, db: Session = Depends(get_db), _admin=Depends(require_admin), actor: str = Depends(get_actor_name)):
+    c = db.query(Candidate).filter(Candidate.id == candidate_id, Candidate.is_deleted == False).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    if payload.assigned_recruiter_id is not None:
+        recruiter = db.query(User).filter(User.id == payload.assigned_recruiter_id, User.role == "Recruiter").first()
+        if not recruiter:
+            raise HTTPException(status_code=404, detail="Recruiter not found")
+        c.assigned_recruiter_id = recruiter.id
+        db.commit()
+        db.refresh(c)
+        log_activity(db, actor, "assigned", "candidate", c.id, f"Assigned \"{c.name}\" to {recruiter.name}")
+        notify(db, recruiter.email, "Candidate assigned to you", f"\"{c.name}\" has been assigned to you for recruitment.", link="/candidates", type="system")
+    else:
+        c.assigned_recruiter_id = None
+        db.commit()
+        db.refresh(c)
+        log_activity(db, actor, "unassigned", "candidate", c.id, f"Unassigned \"{c.name}\" from recruiter")
 
     return c
 

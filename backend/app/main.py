@@ -1,11 +1,15 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
 
+from app.core.config import settings
+from app.core.security import limiter
 from app.database.models import create_tables
 from app.api import auth as auth_router
 from app.api import candidates as candidates_router
@@ -13,6 +17,7 @@ from app.api import jobs as jobs_router
 from app.api import activity as activity_router
 from app.api import referrals as referrals_router
 from app.api import notifications as notifications_router
+from app.api import users as users_router
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
 os.makedirs(os.path.join(UPLOAD_DIR, "resumes"), exist_ok=True)
@@ -26,14 +31,26 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AutoFlexHR AI Backend", lifespan=lifespan)
 
-# CORS Configuration
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS Configuration -- only the known frontend origin(s), not the whole internet.
+ALLOWED_ORIGINS = {settings.FRONTEND_URL, "http://localhost:5173", "http://127.0.0.1:5173"}
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=list(ALLOWED_ORIGINS),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 app.include_router(auth_router.router)
 app.include_router(candidates_router.router)
@@ -41,6 +58,7 @@ app.include_router(jobs_router.router)
 app.include_router(activity_router.router)
 app.include_router(referrals_router.router)
 app.include_router(notifications_router.router)
+app.include_router(users_router.router)
 
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 

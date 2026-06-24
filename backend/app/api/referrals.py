@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 
 from app.database.models import Candidate, Job, Referral, RewardRule, get_db, log_activity, notify
@@ -93,7 +94,11 @@ async def create_referral(
         referred_by_email=employee_email,
     )
     db.add(candidate)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="A candidate with this email already exists.")
     db.refresh(candidate)
 
     referral = Referral(
@@ -170,7 +175,11 @@ async def qr_refer(
         referred_by_email=employee_email,
     )
     db.add(candidate)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="A candidate with this email already exists.")
     db.refresh(candidate)
 
     referral = Referral(

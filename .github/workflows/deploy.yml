@@ -1,0 +1,101 @@
+name: Test and Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  # Not secret -- this is just the public production API URL baked into the frontend bundle.
+  VITE_API_URL: http://187.77.114.156:8080/api
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    # Tests run against an in-memory SQLite DB (see tests/conftest.py) -- these
+    # are just non-empty placeholders so app.core.config.Settings can load at
+    # import time; no real DB/API calls happen in the test suite.
+    env:
+      DATABASE_URL: postgresql+psycopg2://test:test@localhost/test
+      SECRET_KEY: test-secret-key-for-ci-only
+      OPENAI_API_KEY: sk-test-placeholder
+      GROQ_API_KEY: gsk-test-placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install backend dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Run backend test suite
+        working-directory: backend
+        run: pytest tests/ -v
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+  deploy:
+    needs: [backend-tests, frontend-build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      # .env never touches the deploy -- it's untracked and stays exactly as
+      # the live server has it configured. Same for venv/uploads.
+      - name: Deploy backend code
+        run: |
+          rsync -az --delete \
+            --exclude='.env' --exclude='venv' --exclude='.venv' \
+            --exclude='__pycache__' --exclude='uploads' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            backend/app backend/alembic backend/alembic.ini backend/requirements.txt \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/root/autoflexhr/backend/"
+
+      - name: Deploy frontend build
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            frontend/dist/ \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/autoflexhr/frontend-dist/"
+
+      - name: Install deps, run migrations, restart service
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" '
+            set -e
+            cd /root/autoflexhr/backend
+            venv/bin/pip install -r requirements.txt
+            venv/bin/alembic upgrade head
+            chown -R www-data:www-data /var/www/autoflexhr/frontend-dist
+            systemctl restart autoflexhr-backend.service
+            sleep 2
+            systemctl is-active autoflexhr-backend.service
+          '

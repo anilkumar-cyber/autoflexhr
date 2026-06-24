@@ -5,16 +5,12 @@ import { FiMail, FiLock, FiUser, FiEye, FiEyeOff, FiZap, FiShield, FiUsers, FiBr
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../context/store';
 
-const DEMO_ACCOUNTS = [
-  { label: 'Admin', email: 'hr@autoflex.com', password: 'admin123', icon: FiShield },
-  { label: 'Recruiter', email: 'recruiter@autoflex.com', password: 'recruiter123', icon: FiUsers },
-  { label: 'Employee', email: 'employee@autoflex.com', password: 'employee123', icon: FiBriefcase },
-];
-
+// Self-registration is intentionally limited to Employee/Recruiter -- Admin
+// accounts are created by an existing Admin via Settings > Recruiters, never
+// through this public signup form.
 const ROLE_OPTIONS = [
   { value: 'Employee', label: 'Employee', icon: FiBriefcase },
   { value: 'Recruiter', label: 'Recruiter', icon: FiUsers },
-  { value: 'Admin', label: 'HR Admin', icon: FiShield },
 ];
 
 const Input = ({ icon: Icon, label, ...props }) => (
@@ -52,11 +48,6 @@ export default function AuthPage() {
   const navigate = useNavigate();
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const fillDemo = (acc) => {
-    setView('login');
-    setForm(f => ({ ...f, email: acc.email, password: acc.password }));
-  };
 
   const handleLogin = async () => {
     if (!form.email || !form.password) { toast.error('Please fill all fields'); return; }
@@ -123,20 +114,6 @@ export default function AuthPage() {
                   className="w-full btn-primary py-3 text-sm flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-wait">
                   {loading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Signing in…</> : 'Sign In →'}
                 </motion.button>
-
-                {/* Demo creds */}
-                <div className="pt-2">
-                  <div className="text-[11px] font-semibold text-white/40 uppercase tracking-wider mb-2 text-center">Quick demo login</div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {DEMO_ACCOUNTS.map(acc => (
-                      <button key={acc.email} onClick={() => fillDemo(acc)} type="button"
-                        className="flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] hover:border-brand-400/40 transition-all group">
-                        <acc.icon className="w-4 h-4 text-white/40 group-hover:text-brand-400 transition-colors" />
-                        <span className="text-xs font-medium text-white/70 group-hover:text-white transition-colors">{acc.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </motion.div>
             ) : (
               <motion.div key="register" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-4">

@@ -57,6 +57,7 @@ function mapDbCandidate(row) {
     resume_url: resume,
     referredByName: row.referred_by_name || '',
     appliedDate: row.applied_date || new Date().toISOString().split('T')[0],
+    assignedRecruiterId: row.assigned_recruiter_id || null,
   };
 }
 
@@ -121,7 +122,7 @@ export const useAppStore = create(
         set({ loading: true, error: null });
         try {
           const res = await fetch(`${API_BASE}/candidates/`, {
-            headers: { Accept: 'application/json' },
+            headers: { Accept: 'application/json', ...authHeader() },
           });
           if (!res.ok) {
             const txt = await res.text();
@@ -253,6 +254,75 @@ export const useAppStore = create(
         } catch (e) {
           set({ error: e?.message || 'Failed to permanently delete candidate' });
           return false;
+        }
+      },
+
+      // ── Recruiters (Admin only) ─────────────────────────────────────────────
+      fetchUsers: async (role) => {
+        try {
+          const params = role ? `?role=${encodeURIComponent(role)}` : '';
+          const res = await fetch(`${API_BASE}/users/${params}`, {
+            headers: { ...authHeader() },
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to load users');
+          return await res.json();
+        } catch (e) {
+          set({ error: e?.message || 'Failed to load users' });
+          return [];
+        }
+      },
+
+      createRecruiter: async (payload) => {
+        try {
+          const res = await fetch(`${API_BASE}/users/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader() },
+            body: JSON.stringify({ ...payload, role: 'Recruiter' }),
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to create recruiter account');
+          return await res.json();
+        } catch (e) {
+          set({ error: e?.message || 'Failed to create recruiter account' });
+          throw e;
+        }
+      },
+
+      bulkImportResumes: async (files, jobId) => {
+        try {
+          const formData = new FormData();
+          files.forEach(f => formData.append('resumes', f));
+          if (jobId) formData.append('job_id', jobId);
+          const res = await fetch(`${API_BASE}/candidates/bulk-resumes`, {
+            method: 'POST',
+            headers: { ...authHeader() },
+            body: formData,
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to import resumes');
+          const data = await res.json();
+          const mapped = (data.created || []).map(mapDbCandidate);
+          set(s => ({ candidates: [...mapped, ...s.candidates] }));
+          return { created: mapped, skipped: data.skipped || [] };
+        } catch (e) {
+          set({ error: e?.message || 'Failed to import resumes' });
+          return null;
+        }
+      },
+
+      assignCandidate: async (id, recruiterId) => {
+        try {
+          const res = await fetch(`${API_BASE}/candidates/${id}/assign`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', ...authHeader() },
+            body: JSON.stringify({ assigned_recruiter_id: recruiterId }),
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Failed to assign candidate');
+          const row = await res.json();
+          const mapped = mapDbCandidate(row);
+          set(s => ({ candidates: s.candidates.map(c => c.id === id ? mapped : c) }));
+          return mapped;
+        } catch (e) {
+          set({ error: e?.message || 'Failed to assign candidate' });
+          return null;
         }
       },
 

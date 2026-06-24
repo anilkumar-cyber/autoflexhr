@@ -4,6 +4,9 @@ from openai import AsyncOpenAI
 from app.core.config import settings
 
 client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+# Resume parsing uses Groq (OpenAI-compatible API) instead of OpenAI -- same
+# key/model already relied on by the n8n careers-apply pipeline.
+groq_client = AsyncOpenAI(api_key=settings.GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
 
 
 async def parse_resume_text(resume_text: str) -> dict:
@@ -13,6 +16,10 @@ async def parse_resume_text(resume_text: str) -> dict:
 RESUME TEXT:
 {resume_text[:4000]}
 
+Also give an overall resume quality/completeness score from 1 to 100 (1 = very
+weak/incomplete resume, 100 = excellent, well-rounded resume), based purely on
+this resume alone, not against any specific job.
+
 Return this exact JSON structure (use empty string if not found):
 {{
   "name": "Full name of candidate",
@@ -21,23 +28,41 @@ Return this exact JSON structure (use empty string if not found):
   "skills": "Python, React, SQL, ...",
   "education": "B.Tech in Computer Science from XYZ University",
   "experience": "3 years as Software Engineer at ABC Corp",
-  "city": "City name"
+  "city": "City name",
+  "ats_score": 75
 }}"""
 
     try:
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+        response = await groq_client.chat.completions.create(
+            model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
             max_tokens=500,
         )
         text = response.choices[0].message.content.strip()
         text = text.replace("```json", "").replace("```", "").strip()
-        return json.loads(text)
+        # The model sometimes appends explanatory prose after the JSON object --
+        # extract just the {...} block instead of assuming the whole string is JSON.
+        first_brace = text.find("{")
+        last_brace = text.rfind("}")
+        if first_brace == -1 or last_brace == -1:
+            raise ValueError("No JSON object found in model response")
+        text = text[first_brace:last_brace + 1]
+        parsed = json.loads(text)
+        # The prompt asks for a 1-100 score, but the model sometimes ignores
+        # that floor and returns 0 -- clamp it so the UI never shows 0/100.
+        raw_score = parsed.get("ats_score")
+        try:
+            raw_score = float(raw_score)
+        except (TypeError, ValueError):
+            raw_score = 1
+        parsed["ats_score"] = min(100, max(1, raw_score))
+        return parsed
     except Exception:
         return {
             "name": "", "email": "", "phone": "",
-            "skills": "", "education": "", "experience": "", "city": ""
+            "skills": "", "education": "", "experience": "", "city": "",
+            "ats_score": 0,
         }
 
 async def generate_interview_analysis(candidate: dict) -> dict:

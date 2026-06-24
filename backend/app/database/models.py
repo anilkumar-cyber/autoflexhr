@@ -1,15 +1,24 @@
 from sqlalchemy import (
     create_engine,
     Column,
+    Index,
     Integer,
+    JSON,
     String,
     Boolean,
     Float,
     DateTime,
     Text,
     ForeignKey,
+    func,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
+
+# Real jsonb on Postgres (matches the live column type); falls back to plain
+# JSON (stored as TEXT) on SQLite so the test suite can run without a Postgres
+# server.
+JSONType = JSON().with_variant(JSONB, "postgresql")
 
 from sqlalchemy.orm import sessionmaker, declarative_base
 from datetime import datetime
@@ -50,13 +59,16 @@ class User(Base):
 class Candidate(Base):
     __tablename__ = "candidates"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200))
-    email = Column(String(200), index=True)
-    phone = Column(String(50))
-    city = Column(String(100))
+    # name/phone/city/job_title are unbounded Text in the live DB (never enforced
+    # as VARCHAR(n) despite the column names suggesting otherwise) -- the model
+    # matches that instead of risking a migration that fails on existing long values.
+    name = Column(Text)
+    email = Column(Text, index=True)
+    phone = Column(Text)
+    city = Column(Text)
     education = Column(Text)
-    job_title = Column(String(200))
-    job_history = Column(Text)
+    job_title = Column(Text)
+    job_history = Column(JSONType)  # stores a JSON string (e.g. "5 years as...") or null
     skills = Column(Text)
     hr_evaluation = Column(Text)
     ats_score = Column(Float, default=0)
@@ -72,6 +84,19 @@ class Candidate(Base):
     deleted_at = Column(DateTime, nullable=True)
     referred_by_name = Column(String(100), nullable=True)
     referred_by_email = Column(String(200), nullable=True)
+
+    __table_args__ = (
+        # Created via raw SQL in create_tables() for backward compatibility with
+        # existing DBs; declared here too so Alembic autogenerate recognizes it
+        # instead of trying to drop it.
+        Index(
+            "uq_candidates_active_email",
+            func.lower(email),
+            unique=True,
+            postgresql_where=text("is_deleted = false AND email IS NOT NULL AND email <> ''"),
+            sqlite_where=text("is_deleted = 0 AND email IS NOT NULL AND email <> ''"),
+        ),
+    )
 
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
@@ -172,6 +197,32 @@ def create_tables():
         ))
         for col in ("about_role", "primary_skills", "secondary_skills", "qualifications_experience", "what_we_offer"):
             conn.execute(text(f"ALTER TABLE jobs ADD COLUMN IF NOT EXISTS {col} TEXT"))
+        # Application-level "does this email already exist" checks are racy under
+        # concurrent requests (double form submit, webhook retry) -- two requests
+        # can both pass the check before either commits, so existing duplicate
+        # rows are likely already sitting in the table. Move all but the
+        # earliest active row per email to trash before adding the constraint,
+        # otherwise CREATE UNIQUE INDEX would fail outright on the bad data.
+        conn.execute(text(
+            """
+            WITH ranked AS (
+                SELECT id, ROW_NUMBER() OVER (PARTITION BY lower(email) ORDER BY id) AS rn
+                FROM candidates
+                WHERE is_deleted = false AND email IS NOT NULL AND email <> ''
+            )
+            UPDATE candidates
+            SET is_deleted = true, deleted_at = now()
+            WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
+            """
+        ))
+        # Makes the active-candidate-per-email rule atomic at the DB level so a
+        # racing second insert fails fast (IntegrityError -> 409) instead of
+        # creating a duplicate row.
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_candidates_active_email "
+            "ON candidates (lower(email)) "
+            "WHERE is_deleted = false AND email IS NOT NULL AND email <> ''"
+        ))
         conn.commit()
 
     with SessionLocal() as db:

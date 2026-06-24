@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiSearch, FiFilter, FiDownload, FiEye, FiPhone, FiMail, FiMapPin, FiCalendar, FiMessageSquare, FiCopy, FiX, FiChevronUp, FiChevronDown, FiAlertTriangle, FiCpu, FiFileText, FiEdit3, FiTrash2 } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiDownload, FiUpload, FiEye, FiPhone, FiMail, FiMapPin, FiCalendar, FiMessageSquare, FiCopy, FiX, FiChevronUp, FiChevronDown, FiAlertTriangle, FiCpu, FiFileText, FiEdit3, FiTrash2 } from 'react-icons/fi';
 import { useAppStore, useAuthStore } from '../context/store';
 import { initials, avatarColor, scoreColor, STATUS_COLORS, STATUS_OPTIONS, JOB_ROLES, exportCSV } from '../utils/helpers';
 import toast from 'react-hot-toast';
@@ -980,6 +980,97 @@ function CandidateModal({ candidate, onClose }) {
   );
 }
 
+// ── Bulk Resume Import Modal ───────────────────────────────────────────────────
+function ImportResumesModal({ onClose, onImported }) {
+  const { fetchJobs, bulkImportResumes } = useAppStore();
+  const { user } = useAuthStore();
+  const [jobs, setJobs] = useState([]);
+  const [jobId, setJobId] = useState('');
+  const [files, setFiles] = useState([]);
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState(null);
+
+  useEffect(() => { fetchJobs(user?.role).then(setJobs); }, []);
+
+  const handleFiles = e => {
+    const picked = Array.from(e.target.files || []).filter(f => f.type === 'application/pdf');
+    setFiles(picked);
+  };
+
+  const handleImport = async () => {
+    if (files.length === 0) { toast.error('Choose at least one PDF resume'); return; }
+    setImporting(true);
+    const res = await bulkImportResumes(files, jobId || null);
+    setImporting(false);
+    if (!res) { toast.error('Import failed'); return; }
+    setResult(res);
+    onImported(res.created.length);
+    if (res.created.length) toast.success(`Imported ${res.created.length} candidate${res.created.length === 1 ? '' : 's'}`);
+    if (res.skipped.length) toast.error(`${res.skipped.length} resume${res.skipped.length === 1 ? '' : 's'} skipped`);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+      <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
+        className="bg-white dark:bg-surface-card-dark rounded-2xl w-full max-w-lg shadow-modal max-h-[90vh] flex flex-col">
+        <div className="p-5 border-b border-surface-border dark:border-surface-border-dark flex items-center justify-between">
+          <div className="font-bold text-gray-900 dark:text-white">Bulk Import Resumes</div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg"><FiX className="w-4 h-4" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Score against job (optional)</label>
+            <select value={jobId} onChange={e => setJobId(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm border border-surface-border dark:border-surface-border-dark rounded-xl bg-white dark:bg-surface-dark focus:outline-none focus:ring-2 focus:ring-brand-400">
+              <option value="">No job (just parse & create)</option>
+              {jobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Resume PDFs</label>
+            <div className="relative border-2 border-dashed border-surface-border dark:border-surface-border-dark rounded-xl p-6 text-center hover:border-brand-300 transition-colors">
+              <input type="file" accept=".pdf" multiple onChange={handleFiles}
+                className="absolute inset-0 opacity-0 cursor-pointer" />
+              <FiUpload className="w-6 h-6 mx-auto mb-2 text-brand-500" />
+              <div className="text-sm font-semibold text-brand-600 dark:text-brand-400">Click to select PDF resumes</div>
+              <div className="text-xs text-gray-400 mt-1">{files.length ? `${files.length} file${files.length === 1 ? '' : 's'} selected` : 'You can select multiple files'}</div>
+            </div>
+            {files.length > 0 && (
+              <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                {files.map((f, i) => (
+                  <div key={i} className="text-xs text-gray-500 dark:text-gray-400 truncate">{f.name}</div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {result && (
+            <div className="space-y-2">
+              {result.created.length > 0 && (
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-3 text-sm text-green-700 dark:text-green-400">
+                  ✓ {result.created.length} candidate{result.created.length === 1 ? '' : 's'} created
+                </div>
+              )}
+              {result.skipped.length > 0 && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 text-sm text-red-600 dark:text-red-400 space-y-1">
+                  {result.skipped.map((s, i) => (
+                    <div key={i} className="truncate">✕ {s.filename}: {s.reason}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="p-5 border-t border-surface-border dark:border-surface-border-dark">
+          <button onClick={handleImport} disabled={importing} className="btn-primary w-full py-2.5 disabled:opacity-60">
+            {importing ? 'Parsing & importing…' : `Import ${files.length || ''} Resume${files.length === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // ── Main Candidates Page ──────────────────────────────────────────────────────
 export default function Candidates() {
   const { candidates, updateCandidateStatus, duplicateCandidate, deleteCandidate } = useAppStore();
@@ -994,6 +1085,7 @@ export default function Candidates() {
   const [bulkSel, setBulkSel] = useState([]);
   const [bulkStatus, setBulkStatus] = useState('');
   const [page, setPage] = useState(1);
+  const [showImport, setShowImport] = useState(false);
   const PER_PAGE = 15;
 
   const filtered = useMemo(() => candidates.filter(c => {
@@ -1037,6 +1129,12 @@ export default function Candidates() {
           <p className="text-gray-400 text-sm mt-1">{filtered.length} of {candidates.length} candidates</p>
         </div>
         <div className="flex gap-2">
+          {isAdmin && (
+            <button onClick={() => setShowImport(true)}
+              className="btn-ghost text-sm flex items-center gap-2 border border-surface-border dark:border-surface-border-dark">
+              <FiUpload className="w-4 h-4" /> Import Resumes
+            </button>
+          )}
           <button onClick={() => exportCSV(filtered)}
             className="btn-ghost text-sm flex items-center gap-2 border border-surface-border dark:border-surface-border-dark">
             <FiDownload className="w-4 h-4" /> Export CSV
@@ -1214,6 +1312,7 @@ export default function Candidates() {
 
       <AnimatePresence>
         {selected && <CandidateModal candidate={selected} onClose={() => setSelected(null)} />}
+        {showImport && <ImportResumesModal onClose={() => setShowImport(false)} onImported={() => {}} />}
       </AnimatePresence>
     </div>
   );

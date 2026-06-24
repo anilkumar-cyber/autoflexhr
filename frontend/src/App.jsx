@@ -13,6 +13,7 @@ import Settings from './pages/Settings';
 import Trash from './pages/Trash';
 import Jobs from './pages/Jobs';
 import Activity from './pages/Activity';
+import Recruiters from './pages/Recruiters';
 import EmployeeLayout from './layouts/EmployeeLayout';
 import EmployeeDashboard from './pages/employee/EmployeeDashboard';
 import OpenPositions from './pages/employee/OpenPositions';
@@ -74,6 +75,7 @@ export default function App() {
           <Route path="trash" element={<Trash />} />
           <Route path="jobs" element={<Jobs />} />
           <Route path="activity" element={<Activity />} />
+          <Route path="recruiters" element={<Recruiters />} />
           <Route path="settings" element={<Settings />} />
         </Route>
 

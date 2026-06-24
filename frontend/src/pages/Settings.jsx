@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { FiSettings, FiUsers, FiMoon, FiSun, FiRefreshCw, FiShield, FiDatabase } from 'react-icons/fi';
 import { useAppStore, useAuthStore } from '../context/store';
@@ -19,10 +20,15 @@ function Section({ title, icon: Icon, children }) {
 }
 
 export default function Settings() {
-  const { fetchCandidates, loading, darkMode, setDarkMode, lastRefresh, candidates } = useAppStore();
-  const { user, users } = useAuthStore();
+  const { fetchCandidates, fetchUsers, loading, darkMode, setDarkMode, lastRefresh, candidates } = useAppStore();
+  const { user } = useAuthStore();
 
   const isAdmin = user?.role === 'Admin';
+  const [users, setUsers] = useState([]);
+
+  useEffect(() => {
+    if (isAdmin) fetchUsers().then(setUsers);
+  }, [isAdmin]);
 
   if (!isAdmin) {
     return (
@@ -108,7 +114,7 @@ export default function Settings() {
                 <span className={`badge text-xs ${u.role === 'Admin' ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-400 border border-brand-200 dark:border-brand-500/30' : 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800'}`}>
                   {u.role}
                 </span>
-                <span className="text-xs text-gray-300 dark:text-gray-600">{new Date(u.createdAt).toLocaleDateString()}</span>
+                <span className="text-xs text-gray-300 dark:text-gray-600">{u.created_at ? new Date(u.created_at).toLocaleDateString() : ''}</span>
               </div>
             </div>
           ))}

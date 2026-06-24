@@ -37,7 +37,7 @@ export const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { d
 
 export const exportCSV = (candidates) => {
   const headers = ['Name','Email','Phone','City','Job Title','ATS Score','Status','Interview Date','Skills'];
-  const rows = candidates.map(c => [c.Name,c.Email,c.Phone,c.City,c['Job title'],c['ATS Score'],c.status,c.interviewDate||'',c.Skills||''].map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(','));
+  const rows = candidates.map(c => [c.Name,c.Email,c.Phone,c.City,c['Job title'],c['ATS Score'],c.status,c.interviewDate||'',c.Skills||''].map(v=>`"${String(v ?? '').replace(/"/g,'""')}"`).join(','));
   const csv = [headers.join(','), ...rows].join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
