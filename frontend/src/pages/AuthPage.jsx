@@ -167,10 +167,17 @@ const Input = ({ icon: Icon, label, valid, error, onFocus, ...props }) => {
 const PasswordInput = ({ label, value, onChange, placeholder, onKeyDown, error, showStrength, confirmTarget }) => {
   const [show, setShow] = useState(false);
   const [scanKey, setScanKey] = useState(0);
+  const [blinkKey, setBlinkKey] = useState(0);
   const { capsOn, onKeyDown: capsKeyDown, onKeyUp: capsKeyUp } = useCapsLock();
   const strength = showStrength ? getPasswordStrength(value) : null;
   const matchOk = confirmTarget !== undefined && value.length > 0 && value === confirmTarget;
   const matchBad = confirmTarget !== undefined && value.length > 0 && value !== confirmTarget;
+
+  // Lock/shield glows confident green when strong, warns amber/red when weak.
+  const lockGlow = !value.length ? 'none'
+    : showStrength
+      ? strength.score >= 3 ? 'drop-shadow(0 0 5px rgba(34,197,94,0.85))' : strength.score === 2 ? 'drop-shadow(0 0 4px rgba(245,158,11,0.7))' : 'drop-shadow(0 0 4px rgba(239,68,68,0.7))'
+      : 'drop-shadow(0 0 4px rgba(129,150,248,0.8))';
 
   return (
     <motion.div variants={fieldVariants}>
@@ -178,12 +185,19 @@ const PasswordInput = ({ label, value, onChange, placeholder, onKeyDown, error, 
       <div className={`relative rounded-xl overflow-hidden ${error || matchBad ? 'ring-1 ring-red-400/60' : ''}`}>
         <motion.span
           className="absolute left-3.5 top-1/2 -translate-y-1/2 z-10"
-          animate={value.length > 0 ? { color: strength?.color || '#8196f8' } : { color: 'rgba(255,255,255,0.35)' }}
+          animate={{
+            color: value.length > 0 ? (strength?.color || '#8196f8') : 'rgba(255,255,255,0.35)',
+            filter: lockGlow,
+            scale: value.length > 0 && (showStrength ? strength.score >= 3 : true) ? [1, 1.15, 1] : 1,
+          }}
+          transition={{ scale: { duration: 0.6, repeat: value.length > 0 ? Infinity : 0, repeatDelay: 1.2 }, default: { duration: 0.3 } }}
         >
           {showStrength ? <FiShield className="w-4 h-4" /> : <FiLock className="w-4 h-4 text-white/35" />}
         </motion.span>
         <motion.input
-          type={show ? 'text' : 'password'} value={value} onChange={onChange} onKeyDown={(e) => { capsKeyDown(e); onKeyDown?.(e); }} onKeyUp={capsKeyUp}
+          type={show ? 'text' : 'password'} value={value}
+          onChange={(e) => { onChange(e); setBlinkKey(k => k + 1); }}
+          onKeyDown={(e) => { capsKeyDown(e); onKeyDown?.(e); }} onKeyUp={capsKeyUp}
           onFocus={() => setScanKey(k => k + 1)}
           placeholder={placeholder}
           whileFocus={{ scale: 1.012 }}
@@ -195,7 +209,16 @@ const PasswordInput = ({ label, value, onChange, placeholder, onKeyDown, error, 
         ) : null}
         <motion.button type="button" onClick={() => setShow(s => !s)} whileTap={{ scale: 0.85 }}
           className={`absolute ${confirmTarget !== undefined ? 'right-9' : 'right-3.5'} top-1/2 -translate-y-1/2 text-white/35 hover:text-white transition-colors`}>
-          <motion.div animate={value.length > 0 ? { rotate: [0, -8, 8, 0] } : {}} transition={{ duration: 0.3 }}>
+          {/* "protected" pulsing halo while the password is masked */}
+          {!show && value.length > 0 && (
+            <motion.span
+              className="absolute inset-0 rounded-full bg-brand-400/30"
+              animate={{ scale: [1, 1.8, 1], opacity: [0.5, 0, 0.5] }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          )}
+          {/* blink squish on every keystroke -- not a generic wiggle */}
+          <motion.div key={blinkKey} animate={{ scaleY: [1, 0.15, 1] }} transition={{ duration: 0.22, ease: 'easeInOut' }} className="relative">
             <AnimatePresence mode="wait" initial={false}>
               {show ? (
                 <motion.span key="off" initial={{ opacity: 0, rotate: -45 }} animate={{ opacity: 1, rotate: 0 }} exit={{ opacity: 0, rotate: 45 }} transition={{ duration: 0.15 }}>
